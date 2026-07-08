@@ -1,0 +1,420 @@
+{
+  "name": "Weekly Business Status Report (local LLM)",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1120,
+        -260
+      ],
+      "id": "6eaee0b1-f210-4b41-807c-1039621cee03",
+      "name": "Manual Trigger (dev)",
+      "notes": "Manual trigger for local testing only. In production, prefer the Cron trigger."
+    },
+    {
+      "parameters": {
+        "triggerTimes": [
+          {
+            "item": {
+              "hour": 8,
+              "weekday": "1"
+            }
+          }
+        ]
+      },
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -1120,
+        -80
+      ],
+      "id": "b7d9f1b3-8b5f-4f55-9f7c-1234567890ab",
+      "name": "Weekly Schedule (prod)",
+      "notes": "Runs every Monday at 08:00 server time. Adjust schedule in n8n UI for client-specific needs."
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        920,
+        -260
+      ],
+      "id": "bf52c7eb-6ca3-4a77-929e-f64167aa28d2",
+      "name": "Send email",
+      "webhookId": "e8148274-cd95-4786-a49f-1d9eba9ed213"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1b5a3a91-86a4-4128-8592-e512d2f28005",
+              "name": "highlights",
+              "value": "Closed a key client in SaaS vertical; shipped v1 of feature",
+              "type": "string"
+            },
+            {
+              "id": "4fadb193-e76c-4206-8e0f-844f9846950a",
+              "name": "sales_pipeline",
+              "value": "5 new leads, 2 opps to proposal stage, 1 deal closed",
+              "type": "string"
+            },
+            {
+              "id": "aed02fee-91e3-4db6-9352-ab00a25c966f",
+              "name": "marketing",
+              "value": "Ran LinkedIn campaign, CTR up 15%, newsletter sent",
+              "type": "string"
+            },
+            {
+              "id": "e8243aed-9004-4a5c-917f-5dce7f895229",
+              "name": "operations",
+              "value": "Onboarded 2 customers; support backlog cleared",
+              "type": "string"
+            },
+            {
+              "id": "5096fdb8-5f0f-4063-9f87-b9cda52a0384",
+              "name": "product_tech",
+              "value": "Feature X shipped; bug Y fixed; began refactor of module Z",
+              "type": "string"
+            },
+            {
+              "id": "42f90ae5-7610-433a-98e6-26d1682e53c3",
+              "name": "finance_admin",
+              "value": "3 invoices sent, 2 paid; renewed software subscription",
+              "type": "string"
+            },
+            {
+              "id": "7ef5a6eb-eb28-4273-a37a-569f2b0880e9",
+              "name": "risks",
+              "value": "Dependence on single vendor; tight timeline for feature",
+              "type": "string"
+            },
+            {
+              "id": "d4ea19cd-34bc-4df7-8069-ba538d9f2116",
+              "name": "next_week",
+              "value": "Focus on onboarding, close 2 deals, finish refactor",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -900,
+        -260
+      ],
+      "id": "3c4083cd-1177-43c5-b680-6d29c30ff45d",
+      "name": "Set Raw Inputs"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = items[0]?.json ?? {};\n\n// Use ISO date for stable, auditable reports\nconst dateStr = new Date().toISOString().slice(0, 10);\n\nconst prompt = `\nYou are an operations consultant producing a clear, concise **weekly business status report** for leadership.\n\nWrite a Markdown report using the following structure and data. Be concise but readable. Use bullet points where appropriate.\n\n# Weekly Business Status Report - ${dateStr}\n\n## 1. Highlights\nUse \"highlights\" to summarise key wins and notable updates.\n\n## 2. Sales & Pipeline\nUse \"sales_pipeline\" to describe new leads, pipeline movement, and closed deals.\n\n## 3. Marketing & Growth\nUse \"marketing\" to summarise campaigns, channel performance, and experiments.\n\n## 4. Operations & Delivery\nUse \"operations\" to cover project delivery, operational issues, and process improvements.\n\n## 5. Product / Technology\nUse \"product_tech\" to summarise shipped features, bugs fixed, and tech debt work.\n\n## 6. Finance & Admin\nUse \"finance_admin\" to highlight important expenses, invoicing, and cashflow-related notes.\n\n## 7. Risks & Issues\nUse \"risks\" to describe current risks and mitigations.\n\n## 8. Priorities for Next Week\nUse \"next_week\" to list the top 3-5 priorities and any dependencies.\n\nHere is the raw data (JSON):\n\n${JSON.stringify(item, null, 2)}\n\nReturn **only** the final Markdown report, no commentary.\n`.trim();\n\nreturn [\n  {\n    json: {\n      date: dateStr,\n      prompt,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -460,
+        -260
+      ],
+      "id": "aa08d6d0-1d86-4615-9f98-7a24ed4aa907",
+      "name": "Build Prompt"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5001/chat",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "input",
+              "value": "={{ $json[\"prompt\"] }}"
+            },
+            {
+              "name": "alias",
+              "value": "general"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000,
+          "retryOnFail": true,
+          "maxRetries": 3
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -240,
+        -260
+      ],
+      "id": "7c0ac0a7-6df0-45be-a618-d1ec38f29292",
+      "name": "Call Local LLM",
+      "notes": "Calls the local LLM endpoint. Production template includes timeout/retry settings and an error output connected to the failure-alert path.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\n\nfunction firstString(...values) {\n  for (const value of values) {\n    if (typeof value === 'string' && value.trim()) {\n      return value.trim();\n    }\n  }\n  return '';\n}\n\n// Common local/OpenAI-compatible/llama.cpp/Ollama-ish response shapes.\nlet content = firstString(\n  source.response,\n  source.report,\n  source.content,\n  source.text,\n  source.output,\n  source.generated_text,\n  source.message?.content,\n  source.choices?.[0]?.message?.content,\n  source.choices?.[0]?.text,\n  source.results?.[0]?.text,\n  source.data?.response,\n  source.data?.report,\n  source.data?.content,\n  source.data?.text,\n  source.data?.output,\n  source.data?.message?.content,\n  source.data?.choices?.[0]?.message?.content,\n  source.data?.choices?.[0]?.text\n);\n\n// Some wrappers return an array of generated parts.\nif (!content && Array.isArray(source.output)) {\n  content = source.output\n    .map(part => typeof part === 'string' ? part : part?.content || part?.text || '')\n    .filter(Boolean)\n    .join('\\n')\n    .trim();\n}\n\nif (!content) {\n  const availableKeys = Object.keys(source).sort().join(', ');\n  throw new Error(`LLM response did not contain an expected report field. Available top-level fields: ${availableKeys}`);\n}\n\nreturn [{\n  json: {\n    ...source,\n    report: content,\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -20,
+        -260
+      ],
+      "id": "c1d23dac-c9e3-4556-8721-b8e00c9be87c",
+      "name": "Extract Report",
+      "notes": "Normalises common local/OpenAI-compatible response shapes into report. Unexpected response shapes flow to the failure-alert path.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst report = source.report;\n\nif (typeof report !== 'string' || !report.trim()) {\n  throw new Error('Preview / Save Report expected a non-empty report field');\n}\n\nconst generatedAt = new Date().toISOString();\n\nreturn [\n  {\n    json: {\n      ...source,\n      report,\n      preview_markdown: report,\n      generated_at: generatedAt,\n      delivery_status: 'ready_for_email',\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        -260
+      ],
+      "id": "9c8f5a12-8af9-4d64-b9a7-1f4db4b8b0d3",
+      "name": "Preview / Save Report",
+      "notes": "Creates a previewable report payload. In production, replace or extend this with file storage, database insert, Google Drive, Notion, or Slack."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\n\nconst required = [\n  'highlights',\n  'sales_pipeline',\n  'marketing',\n  'operations',\n  'product_tech',\n  'finance_admin',\n  'risks',\n  'next_week',\n];\n\nconst missing = [];\nconst tooShort = [];\n\nfor (const field of required) {\n  const value = source[field];\n  if (typeof value !== 'string' || !value.trim()) {\n    missing.push(field);\n    continue;\n  }\n  if (value.trim().length < 8) {\n    tooShort.push(field);\n  }\n}\n\nif (missing.length || tooShort.length) {\n  throw new Error([\n    missing.length ? `Missing required inputs: ${missing.join(', ')}` : '',\n    tooShort.length ? `Inputs too short to produce a useful report: ${tooShort.join(', ')}` : '',\n  ].filter(Boolean).join('; '));\n}\n\nconst totalInputLength = required\n  .map(field => source[field].trim().length)\n  .reduce((sum, length) => sum + length, 0);\n\nif (totalInputLength < 120) {\n  throw new Error('Input quality guardrail failed: not enough business context to generate a useful weekly report');\n}\n\nreturn [{\n  json: {\n    ...source,\n    input_quality: {\n      status: 'passed',\n      checked_fields: required,\n      total_input_length: totalInputLength,\n    },\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -680,
+        -260
+      ],
+      "id": "e529be64-b735-435e-9b40-94d3f110bbd1",
+      "name": "Validate Inputs / Guardrails",
+      "notes": "Stops empty or low-quality weekly input data before the workflow spends LLM time or sends a weak report."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\n\nif (typeof source.report !== 'string' || !source.report.trim()) {\n  throw new Error('Audit log expected a non-empty report field');\n}\n\nconst auditRecord = {\n  audit_id: `weekly-status-${source.date || new Date().toISOString().slice(0, 10)}-${Date.now()}`,\n  generated_at: source.generated_at || new Date().toISOString(),\n  report_date: source.date,\n  delivery_status: source.delivery_status || 'ready_for_email',\n  source_data: {\n    highlights: source.highlights,\n    sales_pipeline: source.sales_pipeline,\n    marketing: source.marketing,\n    operations: source.operations,\n    product_tech: source.product_tech,\n    finance_admin: source.finance_admin,\n    risks: source.risks,\n    next_week: source.next_week,\n  },\n  report_markdown: source.report,\n};\n\nreturn [{\n  json: {\n    ...source,\n    audit_record: auditRecord,\n    audit_status: 'captured_in_workflow_output',\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        -260
+      ],
+      "id": "ed0742fe-aec8-4442-b007-50bf85225055",
+      "name": "Log Audit Snapshot (demo)",
+      "notes": "Demo audit checkpoint. For client production, replace or extend with database, Google Drive, Notion, filesystem, or logging platform storage."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\n\n// Demo placeholder: pass through by default so the workflow remains runnable.\n// For senior leadership or external recipients, replace this node with a Wait/Form/approval workflow.\nconst approvalRequired = source.approval_required ?? false;\nconst approved = source.approved ?? true;\n\nif (approvalRequired && !approved) {\n  throw new Error('Human approval required before email delivery');\n}\n\nreturn [{\n  json: {\n    ...source,\n    approval: {\n      required: approvalRequired,\n      approved,\n      mode: 'demo_auto_approved_placeholder',\n    },\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        690,
+        -260
+      ],
+      "id": "97ef7a2a-ab6d-4886-aa75-90f22a4cff9e",
+      "name": "Optional Human Approval Gate (demo)",
+      "notes": "Pass-through demo approval gate. Replace with n8n Wait/Form/Slack approval before sending reports to senior leadership or external recipients."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst error = source.error ?? source;\n\nconst message = error.message || error.description || source.message || 'Unknown LLM workflow failure';\nconst failedAt = new Date().toISOString();\n\nconst alertMarkdown = [\n  '# Weekly Status Report Workflow Failure',\n  '',\n  `Time: ${failedAt}`,\n  `Node / stage: ${source.node?.name || source.node || source.stage || 'LLM response path'}`,\n  `Error: ${message}`,\n  '',\n  'Recommended action:',\n  '- Check whether the local LLM endpoint is running and reachable.',\n  '- Check the HTTP response shape returned by the model endpoint.',\n  '- Review the input guardrail output and source business notes.',\n].join('\\n');\n\nreturn [{\n  json: {\n    alert_type: 'weekly_status_report_failure',\n    failed_at: failedAt,\n    alert_subject: 'Weekly status report workflow failed',\n    alert_markdown: alertMarkdown,\n    original_payload: source,\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -20,
+        40
+      ],
+      "id": "0dc69dd2-a6f3-4521-b2c6-8f494c1b4c72",
+      "name": "Prepare Failure Alert",
+      "notes": "Builds an alert payload when the LLM call fails or the response cannot be extracted. Replace the next demo node with Slack, email, PagerDuty, etc."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\n\nreturn [{\n  json: {\n    ...source,\n    alert_delivery_status: 'prepared_demo_payload_replace_with_slack_email_or_incident_node',\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        40
+      ],
+      "id": "c9a34e7d-a110-4368-ae7d-d5365d005efb",
+      "name": "Failure Alert Output (demo)",
+      "notes": "Demo alert output. In production, replace or extend with Slack, email, PagerDuty, Opsgenie, or incident-management integration."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger (dev)": {
+      "main": [
+        [
+          {
+            "node": "Set Raw Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly Schedule (prod)": {
+      "main": [
+        [
+          {
+            "node": "Set Raw Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Raw Inputs": {
+      "main": [
+        [
+          {
+            "node": "Validate Inputs / Guardrails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "Call Local LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Local LLM": {
+      "main": [
+        [
+          {
+            "node": "Extract Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Failure Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Report": {
+      "main": [
+        [
+          {
+            "node": "Preview / Save Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Failure Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preview / Save Report": {
+      "main": [
+        [
+          {
+            "node": "Log Audit Snapshot (demo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Inputs / Guardrails": {
+      "main": [
+        [
+          {
+            "node": "Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Audit Snapshot (demo)": {
+      "main": [
+        [
+          {
+            "node": "Optional Human Approval Gate (demo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Optional Human Approval Gate (demo)": {
+      "main": [
+        [
+          {
+            "node": "Send email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Failure Alert": {
+      "main": [
+        [
+          {
+            "node": "Failure Alert Output (demo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ccb95c49-a3ed-4fb7-97d6-66a185f2e45b",
+  "meta": {
+    "instanceId": "weekly-business-status-report-placeholder-instance-id"
+  },
+  "id": "VBUssfbH7rSvBzld",
+  "tags": []
+}

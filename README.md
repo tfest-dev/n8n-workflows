@@ -1,25 +1,29 @@
-# n8n Business Flows
+# n8n Business Workflows
 
-This repository contains example n8n workflows for example specific business use case automations.
+Example n8n workflows for practical business automation use cases. Each workflow is designed as a connector-agnostic starting point that can be adapted for a specific client stack.
 
-Each workflow lives in its own folder with:
+The repository is intentionally structured like a small automation catalogue rather than a random dump of n8n exports. Every workflow includes:
 
-- A `README.md` describing business value, architecture, and configuration notes.
-- An `examples/` directory with sample input/output payloads.
+- A workflow-specific `README.md` explaining what it does, why it matters, how it works, implementation requirements, concurrency/error handling, and examples.
+- An importable n8n workflow `.json` file.
+- An `examples/` folder containing sample inputs and outputs.
 
 ## Current workflows
 
-- `multi-channel-campaign-orchestrator/` – **Multi-Channel Campaign Orchestrator**
-    - Takes a single campaign definition (audience, dates, budget, channels) as input.
-    - Fans out to set up email, ads, CRM, and internal comms in parallel.
-    - Fans back in to build a consolidated summary of what was created where.
-
-Refer to each folder’s `README.md` for workflow-specific details.
+| Workflow | Business value | Import file |
+| --- | --- | --- |
+| `multi-channel-campaign-orchestrator/` | Converts one approved campaign definition into coordinated setup work across email, ads, CRM, and internal comms. Useful where campaign launches are slow because teams duplicate setup across tools. | `multi-channel-campaign-orchestrator/multi-channel-campaign-orchestrator.json` |
+| `reports-weekly-status-local-llm/` | Generates a structured weekly leadership report from operational notes using a local LLM endpoint, with input guardrails, preview/audit checkpoints, failure-alert handling, optional approval placeholder, and email delivery. Useful where teams need consistent reporting without sending sensitive business context to third-party LLM APIs. | `reports-weekly-status-local-llm/reports-weekly-status-local-llm.json` |
 
 ## Using the workflows
 
-1. Open your n8n instance (self-hosted or cloud).
-2. For a given workflow folder:
-- Import the n8n workflow JSON export from that folder (if present), **or** recreate the flow using the folder’s `README.md` and `examples/` as a guide.
-3. Configure credentials and environment-specific settings in n8n (e.g. email, Slack, CRM, LLM endpoint).
-4. Run the workflow manually or via its configured schedule/trigger.
+1. Open your n8n instance.
+2. Open the folder for the workflow you want to use.
+3. Import the workflow JSON file into n8n.
+4. Review the workflow-specific `README.md`.
+5. Configure credentials and environment-specific settings in n8n, such as email, Slack, CRM, ads, database, or local LLM endpoints.
+6. Run the workflow manually first, then enable any schedule, webhook, or production trigger once configuration has been validated.
+
+## Implementation stance
+
+These workflows are portfolio-ready templates, not plug-and-play SaaS products. The business logic, control flow, and client implementation notes are the value. Real deployments should replace placeholder Code nodes and static data with authenticated connectors, client-specific data sources, proper credentials, and production error handling.

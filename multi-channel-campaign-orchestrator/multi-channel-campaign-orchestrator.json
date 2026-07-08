@@ -1,0 +1,329 @@
+{
+  "name": "Multi-Channel Campaign Orchestrator",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -960,
+        -80
+      ],
+      "id": "5d9a3f3b-1111-4a11-8c11-1234567890aa",
+      "name": "Manual Trigger (dev)"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c1b5fd3e-aaaa-4a3c-9d01-111111111111",
+              "name": "name",
+              "value": "Q2 Product Launch",
+              "type": "string"
+            },
+            {
+              "id": "c1b5fd3e-bbbb-4a3c-9d01-111111111111",
+              "name": "audience_segment",
+              "value": "existing-customers",
+              "type": "string"
+            },
+            {
+              "id": "c1b5fd3e-cccc-4a3c-9d01-111111111111",
+              "name": "start_date",
+              "value": "2025-04-01",
+              "type": "string"
+            },
+            {
+              "id": "c1b5fd3e-dddd-4a3c-9d01-111111111111",
+              "name": "end_date",
+              "value": "2025-04-30",
+              "type": "string"
+            },
+            {
+              "id": "c1b5fd3e-eeee-4a3c-9d01-111111111111",
+              "name": "budget_usd",
+              "value": "25000",
+              "type": "string"
+            },
+            {
+              "id": "c1b5fd3e-ffff-4a3c-9d01-111111111111",
+              "name": "channels",
+              "value": "{\"email\": true, \"ads\": true, \"crm\": true, \"internal_comms\": true}",
+              "type": "string"
+            },
+            {
+              "id": "c1b5fd3e-9999-4a3c-9d01-111111111111",
+              "name": "goals",
+              "value": "{\"pipeline_created_usd\": 150000, \"signups\": 500}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -760,
+        -80
+      ],
+      "id": "bd3b2d3f-2222-4b22-9c22-1234567890bb",
+      "name": "Set Campaign"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = items[0].json;\n\nconst required = ['name', 'audience_segment', 'start_date', 'end_date', 'budget_usd'];\nfor (const field of required) {\n  if (item[field] === undefined || item[field] === null || item[field] === '') {\n    throw new Error(`Missing required field: ${field}`);\n  }\n}\n\n// Parse numeric fields and JSON strings where relevant\nconst budget = Number(item.budget_usd);\nif (Number.isNaN(budget) || budget <= 0) {\n  throw new Error('budget_usd must be a positive number');\n}\n\nlet channels = {};\nlet goals = {};\ntry {\n  channels = item.channels ? JSON.parse(item.channels) : {};\n} catch (e) {\n  throw new Error('channels must be valid JSON');\n}\n\ntry {\n  goals = item.goals ? JSON.parse(item.goals) : {};\n} catch (e) {\n  throw new Error('goals must be valid JSON');\n}\n\nreturn [{\n  json: {\n    ...item,\n    budget_usd: budget,\n    channels,\n    goals,\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -520,
+        -80
+      ],
+      "id": "f8b1f0f0-3333-4c33-9d33-1234567890cc",
+      "name": "Validate & Normalise"
+    },
+    {
+      "parameters": {
+        "jsCode": "const campaign = { ...items[0].json };\n\nif (!campaign.channels?.email) {\n  return [{ json: { ...campaign, email: { enabled: false } } }];\n}\n\nconst email = {\n  enabled: true,\n  segmentId: 'seg_placeholder',\n  campaignId: 'cmp_email_placeholder',\n  status: 'draft'\n};\n\nreturn [{ json: { ...campaign, email } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -260,
+        -260
+      ],
+      "id": "a1e2b3c4-4444-4d44-9e44-1234567890dd",
+      "name": "Setup Email Campaign"
+    },
+    {
+      "parameters": {
+        "jsCode": "const campaign = { ...items[0].json };\n\nif (!campaign.channels?.ads) {\n  return [{ json: { ...campaign, ads: { enabled: false } } }];\n}\n\nconst ads = {\n  enabled: true,\n  metaAdSetId: 'adset_meta_placeholder',\n  googleCampaignId: 'gads_placeholder',\n  budget_usd: campaign.budget_usd\n};\n\nreturn [{ json: { ...campaign, ads } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -260,
+        -40
+      ],
+      "id": "b2f3c4d5-5555-4e55-9f55-1234567890ee",
+      "name": "Setup Ads"
+    },
+    {
+      "parameters": {
+        "jsCode": "const campaign = { ...items[0].json };\n\nif (!campaign.channels?.crm) {\n  return [{ json: { ...campaign, crm: { enabled: false } } }];\n}\n\nconst crm = {\n  enabled: true,\n  campaignId: 'crm_campaign_placeholder',\n  taggedAccounts: 120\n};\n\nreturn [{ json: { ...campaign, crm } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -260,
+        180
+      ],
+      "id": "c3g4d5e6-6666-4f66-9a66-1234567890ff",
+      "name": "Setup CRM Campaign"
+    },
+    {
+      "parameters": {
+        "jsCode": "const campaign = { ...items[0].json };\n\nif (!campaign.channels?.internal_comms) {\n  return [{ json: { ...campaign, internalComms: { enabled: false } } }];\n}\n\nconst internalComms = {\n  enabled: true,\n  slackChannel: '#campaigns',\n  messageLink: 'https://your-workspace.slack.com/archives/campaign_message_placeholder'\n};\n\nreturn [{ json: { ...campaign, internalComms } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -260,
+        400
+      ],
+      "id": "d4h5e6f7-7777-4a77-9b77-123456789011",
+      "name": "Notify Internal Comms"
+    },
+    {
+      "parameters": {
+        "mode": "mergeByIndex"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        0,
+        -200
+      ],
+      "id": "e5i6f7g8-8888-4b88-9c88-123456789022",
+      "name": "Merge Email + Ads"
+    },
+    {
+      "parameters": {
+        "mode": "mergeByIndex"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        260,
+        -40
+      ],
+      "id": "f6j7g8h9-9999-4c99-9d99-123456789033",
+      "name": "Merge Campaign + CRM"
+    },
+    {
+      "parameters": {
+        "mode": "mergeByIndex"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        520,
+        160
+      ],
+      "id": "g7k8h9i0-aaaa-4daa-9eaa-123456789044",
+      "name": "Merge Full Campaign"
+    },
+    {
+      "parameters": {
+        "jsCode": "const c = items[0].json;\n\nconst lines = [];\nlines.push(`# Campaign: ${c.name}`);\nlines.push('');\nlines.push(`Audience: ${c.audience_segment}`);\nlines.push(`Dates: ${c.start_date} → ${c.end_date}`);\nlines.push(`Budget: $${c.budget_usd}`);\nlines.push('');\nlines.push('## Channels');\n\nif (c.email?.enabled) {\n  lines.push('- Email: draft campaign created (segment: segment placeholder, ID: cmp_email_placeholder)');\n} else {\n  lines.push('- Email: disabled');\n}\n\nif (c.ads?.enabled) {\n  lines.push('- Ads: Meta and Google campaigns created (IDs: placeholders)');\n} else {\n  lines.push('- Ads: disabled');\n}\n\nif (c.crm?.enabled) {\n  lines.push('- CRM: campaign record created and accounts tagged');\n} else {\n  lines.push('- CRM: disabled');\n}\n\nif (c.internalComms?.enabled) {\n  lines.push('- Internal comms: posted to #campaigns');\n} else {\n  lines.push('- Internal comms: disabled');\n}\n\nconst summary_markdown = lines.join('\n');\n\nreturn [{ json: { ...c, summary_markdown } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        160
+      ],
+      "id": "h8l9i0j1-bbbb-4ebb-9fbb-123456789055",
+      "name": "Build Summary"
+    }
+  ],
+  "connections": {
+    "Manual Trigger (dev)": {
+      "main": [
+        [
+          {
+            "node": "Set Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Campaign": {
+      "main": [
+        [
+          {
+            "node": "Validate & Normalise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Normalise": {
+      "main": [
+        [
+          {
+            "node": "Setup Email Campaign",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Setup Ads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Setup CRM Campaign",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Internal Comms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Email Campaign": {
+      "main": [
+        [
+          {
+            "node": "Merge Email + Ads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Ads": {
+      "main": [
+        [
+          {
+            "node": "Merge Email + Ads",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Email + Ads": {
+      "main": [
+        [
+          {
+            "node": "Merge Campaign + CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup CRM Campaign": {
+      "main": [
+        [
+          {
+            "node": "Merge Campaign + CRM",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Campaign + CRM": {
+      "main": [
+        [
+          {
+            "node": "Merge Full Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Internal Comms": {
+      "main": [
+        [
+          {
+            "node": "Merge Full Campaign",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Full Campaign": {
+      "main": [
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ca4b1d2e-cccc-4cdd-9eee-123456789066",
+  "meta": {
+    "instanceId": "multi-channel-campaign-orchestrator-placeholder-instance-id"
+  },
+  "id": "KAMPOrchestrator001",
+  "tags": []
+}
