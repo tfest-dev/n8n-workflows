@@ -4,6 +4,8 @@ This workflow coordinates a marketing campaign across multiple channels  (email,
 
 It is designed as a connector-agnostic n8n template: the included Code nodes simulate the shape of real integrations, while the control layer shows how a client implementation should handle partial success, retries, duplicate prevention, and support visibility.
 
+<img src=examples/images/flow-executed-n8n.png alt="Successful execution in n8n"/>
+
 ## Business value
 
 - Reduces manual campaign setup across several disconnected tools.
