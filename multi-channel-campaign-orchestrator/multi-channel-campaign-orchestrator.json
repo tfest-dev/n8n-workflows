@@ -23,6 +23,12 @@
               "type": "string"
             },
             {
+              "id": "c1b5fd3e-a001-4a3c-9d01-111111111111",
+              "name": "campaign_id",
+              "value": "q2-product-launch-2025",
+              "type": "string"
+            },
+            {
               "id": "c1b5fd3e-bbbb-4a3c-9d01-111111111111",
               "name": "audience_segment",
               "value": "existing-customers",
@@ -57,6 +63,12 @@
               "name": "goals",
               "value": "{\"pipeline_created_usd\": 150000, \"signups\": 500}",
               "type": "string"
+            },
+            {
+              "id": "c1b5fd3e-a002-4a3c-9d01-111111111111",
+              "name": "simulate_failures",
+              "value": "{}",
+              "type": "string"
             }
           ]
         },
@@ -73,7 +85,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = items[0].json;\n\nconst required = ['name', 'audience_segment', 'start_date', 'end_date', 'budget_usd'];\nfor (const field of required) {\n  if (item[field] === undefined || item[field] === null || item[field] === '') {\n    throw new Error(`Missing required field: ${field}`);\n  }\n}\n\n// Parse numeric fields and JSON strings where relevant\nconst budget = Number(item.budget_usd);\nif (Number.isNaN(budget) || budget <= 0) {\n  throw new Error('budget_usd must be a positive number');\n}\n\nlet channels = {};\nlet goals = {};\ntry {\n  channels = item.channels ? JSON.parse(item.channels) : {};\n} catch (e) {\n  throw new Error('channels must be valid JSON');\n}\n\ntry {\n  goals = item.goals ? JSON.parse(item.goals) : {};\n} catch (e) {\n  throw new Error('goals must be valid JSON');\n}\n\nreturn [{\n  json: {\n    ...item,\n    budget_usd: budget,\n    channels,\n    goals,\n  },\n}];\n"
+        "jsCode": "const item = items[0].json;\n\nconst required = ['campaign_id', 'name', 'audience_segment', 'start_date', 'end_date', 'budget_usd'];\nfor (const field of required) {\n  if (item[field] === undefined || item[field] === null || item[field] === '') {\n    throw new Error(`Missing required field: ${field}`);\n  }\n}\n\nconst budget = Number(item.budget_usd);\nif (Number.isNaN(budget) || budget <= 0) {\n  throw new Error('budget_usd must be a positive number');\n}\n\nlet channels = {};\nlet goals = {};\nlet simulate_failures = {};\ntry {\n  channels = item.channels ? JSON.parse(item.channels) : {};\n} catch (e) {\n  throw new Error('channels must be valid JSON');\n}\n\ntry {\n  goals = item.goals ? JSON.parse(item.goals) : {};\n} catch (e) {\n  throw new Error('goals must be valid JSON');\n}\n\ntry {\n  simulate_failures = item.simulate_failures ? JSON.parse(item.simulate_failures) : {};\n} catch (e) {\n  throw new Error('simulate_failures must be valid JSON');\n}\n\nconst enabledChannels = Object.entries(channels).filter(([, enabled]) => Boolean(enabled));\nif (enabledChannels.length === 0) {\n  throw new Error('At least one campaign channel must be enabled');\n}\n\nreturn [{\n  json: {\n    ...item,\n    budget_usd: budget,\n    channels,\n    goals,\n    simulate_failures,\n  },\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -86,55 +98,59 @@
     },
     {
       "parameters": {
-        "jsCode": "const campaign = { ...items[0].json };\n\nif (!campaign.channels?.email) {\n  return [{ json: { ...campaign, email: { enabled: false } } }];\n}\n\nconst email = {\n  enabled: true,\n  segmentId: 'seg_placeholder',\n  campaignId: 'cmp_email_placeholder',\n  status: 'draft'\n};\n\nreturn [{ json: { ...campaign, email } }];\n"
+        "jsCode": "const campaign = { ...items[0].json };\nconst channel = 'email';\nconst startedAt = new Date().toISOString();\n\ntry {\n  if (!campaign.channels?.email) {\n    return [{ json: { ...campaign, channel_results: { ...campaign.channel_results, email: { channel, status: 'skipped', enabled: false, reason: 'Channel disabled' } } } }];\n  }\n\n  if (campaign.simulate_failures?.email) {\n    throw new Error('Simulated email platform failure');\n  }\n\n  const result = {\n    channel,\n    enabled: true,\n    status: 'success',\n    idempotency_key: campaign.control.idempotency_keys.email,\n    retry_policy: campaign.control.retry_policy,\n    started_at: startedAt,\n    completed_at: new Date().toISOString(),\n    entity: {\n      segmentId: 'seg_placeholder',\n      campaignId: 'cmp_email_placeholder',\n      status: 'draft'\n    }\n  };\n\n  return [{ json: { ...campaign, email: result.entity, channel_results: { ...campaign.channel_results, email: result } } }];\n} catch (error) {\n  const result = {\n    channel,\n    enabled: true,\n    status: 'failed',\n    idempotency_key: campaign.control?.idempotency_keys?.email,\n    retry_policy: campaign.control?.retry_policy,\n    started_at: startedAt,\n    completed_at: new Date().toISOString(),\n    error: error.message\n  };\n  return [{ json: { ...campaign, email: { enabled: false, error: error.message }, channel_results: { ...campaign.channel_results, email: result } } }];\n}\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -260,
+        -120,
         -260
       ],
       "id": "a1e2b3c4-4444-4d44-9e44-1234567890dd",
-      "name": "Setup Email Campaign"
+      "name": "Setup Email Campaign",
+      "notes": "Demo-safe email branch. Catches channel failures and returns a structured partial-success/failed status instead of hiding other branch results. In production, replace with connector/API nodes using the supplied idempotency key and retry policy."
     },
     {
       "parameters": {
-        "jsCode": "const campaign = { ...items[0].json };\n\nif (!campaign.channels?.ads) {\n  return [{ json: { ...campaign, ads: { enabled: false } } }];\n}\n\nconst ads = {\n  enabled: true,\n  metaAdSetId: 'adset_meta_placeholder',\n  googleCampaignId: 'gads_placeholder',\n  budget_usd: campaign.budget_usd\n};\n\nreturn [{ json: { ...campaign, ads } }];\n"
+        "jsCode": "const campaign = { ...items[0].json };\nconst channel = 'ads';\nconst startedAt = new Date().toISOString();\n\ntry {\n  if (!campaign.channels?.ads) {\n    return [{ json: { ...campaign, channel_results: { ...campaign.channel_results, ads: { channel, status: 'skipped', enabled: false, reason: 'Channel disabled' } } } }];\n  }\n\n  if (campaign.simulate_failures?.ads) {\n    throw new Error('Simulated ads API failure or rate limit');\n  }\n\n  const result = {\n    channel,\n    enabled: true,\n    status: 'success',\n    idempotency_key: campaign.control.idempotency_keys.ads,\n    retry_policy: campaign.control.retry_policy,\n    started_at: startedAt,\n    completed_at: new Date().toISOString(),\n    entity: {\n      metaAdSetId: 'adset_meta_placeholder',\n      googleCampaignId: 'gads_placeholder',\n      budget_usd: campaign.budget_usd\n    }\n  };\n\n  return [{ json: { ...campaign, ads: result.entity, channel_results: { ...campaign.channel_results, ads: result } } }];\n} catch (error) {\n  const result = {\n    channel,\n    enabled: true,\n    status: 'failed',\n    idempotency_key: campaign.control?.idempotency_keys?.ads,\n    retry_policy: campaign.control?.retry_policy,\n    started_at: startedAt,\n    completed_at: new Date().toISOString(),\n    error: error.message\n  };\n  return [{ json: { ...campaign, ads: { enabled: false, error: error.message }, channel_results: { ...campaign.channel_results, ads: result } } }];\n}\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -260,
+        -120,
         -40
       ],
       "id": "b2f3c4d5-5555-4e55-9f55-1234567890ee",
-      "name": "Setup Ads"
+      "name": "Setup Ads",
+      "notes": "Demo-safe ads branch. Catches channel failures and returns a structured partial-success/failed status instead of hiding other branch results. In production, replace with connector/API nodes using the supplied idempotency key and retry policy."
     },
     {
       "parameters": {
-        "jsCode": "const campaign = { ...items[0].json };\n\nif (!campaign.channels?.crm) {\n  return [{ json: { ...campaign, crm: { enabled: false } } }];\n}\n\nconst crm = {\n  enabled: true,\n  campaignId: 'crm_campaign_placeholder',\n  taggedAccounts: 120\n};\n\nreturn [{ json: { ...campaign, crm } }];\n"
+        "jsCode": "const campaign = { ...items[0].json };\nconst channel = 'crm';\nconst startedAt = new Date().toISOString();\n\ntry {\n  if (!campaign.channels?.crm) {\n    return [{ json: { ...campaign, channel_results: { ...campaign.channel_results, crm: { channel, status: 'skipped', enabled: false, reason: 'Channel disabled' } } } }];\n  }\n\n  if (campaign.simulate_failures?.crm) {\n    throw new Error('Simulated CRM API failure');\n  }\n\n  const result = {\n    channel,\n    enabled: true,\n    status: 'success',\n    idempotency_key: campaign.control.idempotency_keys.crm,\n    retry_policy: campaign.control.retry_policy,\n    started_at: startedAt,\n    completed_at: new Date().toISOString(),\n    entity: {\n      campaignId: 'crm_campaign_placeholder',\n      taggedAccounts: 120\n    }\n  };\n\n  return [{ json: { ...campaign, crm: result.entity, channel_results: { ...campaign.channel_results, crm: result } } }];\n} catch (error) {\n  const result = {\n    channel,\n    enabled: true,\n    status: 'failed',\n    idempotency_key: campaign.control?.idempotency_keys?.crm,\n    retry_policy: campaign.control?.retry_policy,\n    started_at: startedAt,\n    completed_at: new Date().toISOString(),\n    error: error.message\n  };\n  return [{ json: { ...campaign, crm: { enabled: false, error: error.message }, channel_results: { ...campaign.channel_results, crm: result } } }];\n}\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -260,
+        -120,
         180
       ],
       "id": "c3g4d5e6-6666-4f66-9a66-1234567890ff",
-      "name": "Setup CRM Campaign"
+      "name": "Setup CRM Campaign",
+      "notes": "Demo-safe crm branch. Catches channel failures and returns a structured partial-success/failed status instead of hiding other branch results. In production, replace with connector/API nodes using the supplied idempotency key and retry policy."
     },
     {
       "parameters": {
-        "jsCode": "const campaign = { ...items[0].json };\n\nif (!campaign.channels?.internal_comms) {\n  return [{ json: { ...campaign, internalComms: { enabled: false } } }];\n}\n\nconst internalComms = {\n  enabled: true,\n  slackChannel: '#campaigns',\n  messageLink: 'https://your-workspace.slack.com/archives/campaign_message_placeholder'\n};\n\nreturn [{ json: { ...campaign, internalComms } }];\n"
+        "jsCode": "const campaign = { ...items[0].json };\nconst channel = 'internal_comms';\nconst startedAt = new Date().toISOString();\n\ntry {\n  if (!campaign.channels?.internal_comms) {\n    return [{ json: { ...campaign, channel_results: { ...campaign.channel_results, internal_comms: { channel, status: 'skipped', enabled: false, reason: 'Channel disabled' } } } }];\n  }\n\n  if (campaign.simulate_failures?.internal_comms) {\n    throw new Error('Simulated internal comms posting failure');\n  }\n\n  const result = {\n    channel,\n    enabled: true,\n    status: 'success',\n    idempotency_key: campaign.control.idempotency_keys.internal_comms,\n    retry_policy: campaign.control.retry_policy,\n    started_at: startedAt,\n    completed_at: new Date().toISOString(),\n    entity: {\n      slackChannel: '#campaigns',\n      messageLink: 'https://your-workspace.slack.com/archives/campaign_message_placeholder'\n    }\n  };\n\n  return [{ json: { ...campaign, internalComms: result.entity, channel_results: { ...campaign.channel_results, internal_comms: result } } }];\n} catch (error) {\n  const result = {\n    channel,\n    enabled: true,\n    status: 'failed',\n    idempotency_key: campaign.control?.idempotency_keys?.internal_comms,\n    retry_policy: campaign.control?.retry_policy,\n    started_at: startedAt,\n    completed_at: new Date().toISOString(),\n    error: error.message\n  };\n  return [{ json: { ...campaign, internalComms: { enabled: false, error: error.message }, channel_results: { ...campaign.channel_results, internal_comms: result } } }];\n}\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -260,
+        -120,
         400
       ],
       "id": "d4h5e6f7-7777-4a77-9b77-123456789011",
-      "name": "Notify Internal Comms"
+      "name": "Notify Internal Comms",
+      "notes": "Demo-safe internal_comms branch. Catches channel failures and returns a structured partial-success/failed status instead of hiding other branch results. In production, replace with connector/API nodes using the supplied idempotency key and retry policy."
     },
     {
       "parameters": {
@@ -143,7 +159,7 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 2,
       "position": [
-        0,
+        160,
         -200
       ],
       "id": "e5i6f7g8-8888-4b88-9c88-123456789022",
@@ -156,7 +172,7 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 2,
       "position": [
-        260,
+        420,
         -40
       ],
       "id": "f6j7g8h9-9999-4c99-9d99-123456789033",
@@ -169,7 +185,7 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 2,
       "position": [
-        520,
+        680,
         160
       ],
       "id": "g7k8h9i0-aaaa-4daa-9eaa-123456789044",
@@ -177,16 +193,44 @@
     },
     {
       "parameters": {
-        "jsCode": "const c = items[0].json;\n\nconst lines = [];\nlines.push(`# Campaign: ${c.name}`);\nlines.push('');\nlines.push(`Audience: ${c.audience_segment}`);\nlines.push(`Dates: ${c.start_date} → ${c.end_date}`);\nlines.push(`Budget: $${c.budget_usd}`);\nlines.push('');\nlines.push('## Channels');\n\nif (c.email?.enabled) {\n  lines.push('- Email: draft campaign created (segment: segment placeholder, ID: cmp_email_placeholder)');\n} else {\n  lines.push('- Email: disabled');\n}\n\nif (c.ads?.enabled) {\n  lines.push('- Ads: Meta and Google campaigns created (IDs: placeholders)');\n} else {\n  lines.push('- Ads: disabled');\n}\n\nif (c.crm?.enabled) {\n  lines.push('- CRM: campaign record created and accounts tagged');\n} else {\n  lines.push('- CRM: disabled');\n}\n\nif (c.internalComms?.enabled) {\n  lines.push('- Internal comms: posted to #campaigns');\n} else {\n  lines.push('- Internal comms: disabled');\n}\n\nconst summary_markdown = lines.join('\n');\n\nreturn [{ json: { ...c, summary_markdown } }];\n"
+        "jsCode": "const c = items[0].json;\nconst results = c.channel_results ?? {};\nconst channelOrder = [\n  ['email', 'Email'],\n  ['ads', 'Ads'],\n  ['crm', 'CRM'],\n  ['internal_comms', 'Internal comms'],\n];\n\nconst counts = { success: 0, failed: 0, skipped: 0 };\nfor (const [key] of channelOrder) {\n  const status = results[key]?.status ?? 'missing';\n  if (counts[status] !== undefined) counts[status] += 1;\n}\n\nconst overall_status = counts.failed > 0\n  ? (counts.success > 0 ? 'partial_success' : 'failed')\n  : 'success';\n\nconst lines = [];\nlines.push(`# Campaign: ${c.name}`);\nlines.push('');\nlines.push(`Campaign ID: ${c.control?.campaign_id ?? c.campaign_id}`);\nlines.push(`Audience: ${c.audience_segment}`);\nlines.push(`Dates: ${c.start_date} \u2192 ${c.end_date}`);\nlines.push(`Budget: $${c.budget_usd}`);\nlines.push(`Overall status: ${overall_status}`);\nlines.push('');\nlines.push('## Channel status');\n\nfor (const [key, label] of channelOrder) {\n  const result = results[key];\n  if (!result) {\n    lines.push(`- ${label}: missing result`);\n    continue;\n  }\n\n  if (result.status === 'success') {\n    lines.push(`- ${label}: success (idempotency key: ${result.idempotency_key})`);\n  } else if (result.status === 'failed') {\n    lines.push(`- ${label}: failed (${result.error})`);\n  } else if (result.status === 'skipped') {\n    lines.push(`- ${label}: skipped (${result.reason})`);\n  } else {\n    lines.push(`- ${label}: ${result.status}`);\n  }\n}\n\nlines.push('');\nlines.push('## Control notes');\nlines.push(`- Retry policy: ${c.control?.retry_policy?.max_attempts ?? 3} attempts with ${c.control?.retry_policy?.backoff ?? 'exponential'} backoff for transient API failures.`);\nlines.push('- Idempotency keys are generated per campaign/channel to avoid duplicate creation after retries.');\nlines.push('- Failed branches are captured in the final summary instead of masking successful branches.');\n\nconst summary_markdown = lines.join('\\n');\n\nreturn [{\n  json: {\n    ...c,\n    overall_status,\n    summary_markdown,\n  },\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        760,
+        920,
         160
       ],
       "id": "h8l9i0j1-bbbb-4ebb-9fbb-123456789055",
       "name": "Build Summary"
+    },
+    {
+      "parameters": {
+        "jsCode": "const campaign = { ...items[0].json };\nconst generatedAt = new Date().toISOString();\nconst campaignId = String(campaign.campaign_id).trim();\n\nconst branchNames = ['email', 'ads', 'crm', 'internal_comms'];\nconst idempotencyKeys = Object.fromEntries(\n  branchNames.map(channel => [channel, `${campaignId}:${channel}:${campaign.start_date}`])\n);\n\nconst retryPolicy = {\n  max_attempts: 3,\n  backoff: 'exponential',\n  retry_on: ['429', '408', '5xx', 'network_timeout'],\n  notes: 'Use this policy on real HTTP/native connector nodes for transient external API failures.'\n};\n\nreturn [{\n  json: {\n    ...campaign,\n    control: {\n      campaign_id: campaignId,\n      generated_at: generatedAt,\n      idempotency_keys: idempotencyKeys,\n      retry_policy: retryPolicy,\n    },\n    channel_results: {},\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        -80
+      ],
+      "id": "p9m8n7b6-1010-4c10-8d10-1234567890ab",
+      "name": "Prepare Campaign Control",
+      "notes": "Adds campaign-level control metadata: campaign ID, per-channel idempotency keys, and a documented retry policy for production connector/API nodes."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst auditRecord = {\n  audit_type: 'campaign_orchestration_result',\n  logged_at: new Date().toISOString(),\n  campaign_id: source.control?.campaign_id ?? source.campaign_id,\n  campaign_name: source.name,\n  overall_status: source.overall_status,\n  channel_results: source.channel_results,\n  idempotency_keys: source.control?.idempotency_keys,\n  retry_policy: source.control?.retry_policy,\n  summary_markdown: source.summary_markdown,\n  source_payload: {\n    audience_segment: source.audience_segment,\n    start_date: source.start_date,\n    end_date: source.end_date,\n    budget_usd: source.budget_usd,\n    channels: source.channels,\n    goals: source.goals,\n  },\n};\n\nreturn [{\n  json: {\n    ...source,\n    audit_record: auditRecord,\n    audit_status: 'ready_for_durable_store',\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        160
+      ],
+      "id": "i9m0j1k2-1212-4f12-9a12-123456789077",
+      "name": "Log Final Output (demo)",
+      "notes": "Demo audit checkpoint. In production replace or extend with a database, object storage, Google Drive, Notion, Sheets, or ticketing node."
     }
   ],
   "connections": {
@@ -216,22 +260,7 @@
       "main": [
         [
           {
-            "node": "Setup Email Campaign",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Setup Ads",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Setup CRM Campaign",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Notify Internal Comms",
+            "node": "Prepare Campaign Control",
             "type": "main",
             "index": 0
           }
@@ -309,6 +338,43 @@
         [
           {
             "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Campaign Control": {
+      "main": [
+        [
+          {
+            "node": "Setup Email Campaign",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Setup Ads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Setup CRM Campaign",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Internal Comms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Summary": {
+      "main": [
+        [
+          {
+            "node": "Log Final Output (demo)",
             "type": "main",
             "index": 0
           }

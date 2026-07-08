@@ -64,7 +64,7 @@ This repository version now includes demo-friendly versions of the production co
 
 ## Concurrency and error handling
 
-This is intentionally a mostly linear reporting workflow because the report needs a clear source-to-output chain. The high-risk points are input quality, LLM availability, response-shape mismatch, and email delivery.
+This is a mostly linear reporting workflow because the report needs a clear source-to-output chain. The high-risk points are input quality, LLM availability, response-shape mismatch, and email delivery.
 
 Current handling:
 

@@ -2,7 +2,7 @@
 
 Example n8n workflows for practical business automation use cases. Each workflow is designed as a connector-agnostic starting point that can be adapted for a specific client stack.
 
-The repository is intentionally structured like a small automation catalogue rather than a random dump of n8n exports. Every workflow includes:
+The repository is structured like a small automation catalogue rather than a random dump of n8n exports. Every workflow includes:
 
 - A workflow-specific `README.md` explaining what it does, why it matters, how it works, implementation requirements, concurrency/error handling, and examples.
 - An importable n8n workflow `.json` file.

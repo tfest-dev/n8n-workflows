@@ -1,68 +1,124 @@
 # Multi-Channel Campaign Orchestrator
 
-This n8n workflow turns a single campaign definition into coordinated setup activity across email, ads, CRM, and internal communications. It is currently connector-agnostic so can act as a reusable orchestration pattern rather than a fully deployed marketing automation integration.
+This workflow coordinates a marketing campaign across multiple channels  (email, ads, CRM, and internal comms) while preserving per-channel status, idempotency controls, and an audit-ready final output.
 
-<img src=examples/images/flow-executed-n8n.png alt="Successful execution in n8n"/>
-
-## What the workflow does
-
-The flow accepts one campaign payload containing the campaign name, audience segment, dates, budget, enabled channels, and goals. It validates and normalises that payload, fans out into parallel channel setup branches, then merges the results into a consolidated campaign summary.
-
-In the repository version, the external integrations are represented by Code nodes with placeholder outputs. That is deliberate: the template demonstrates the business process, data contract, and fan-out/fan-in pattern without requiring specific third-party credentials.
+It is designed as a connector-agnostic n8n template: the included Code nodes simulate the shape of real integrations, while the control layer shows how a client implementation should handle partial success, retries, duplicate prevention, and support visibility.
 
 ## Business value
 
-Campaign launches often become slow because marketing, sales, CRM, paid media, and internal comms teams each recreate the same campaign context in different tools. This workflow gives a client a controlled launch path:
+- Reduces manual campaign setup across several disconnected tools.
+- Keeps campaign metadata, timing, targeting, budget, and goals consistent across channels.
+- Prevents a single failed channel from hiding successful channel work.
+- Captures partial success states so operations, marketing, and leadership know exactly what was created and what needs intervention.
+- Establishes idempotency and audit patterns that are required before this kind of workflow should touch production marketing systems.
 
-- One approved campaign definition becomes the source of truth.
-- Setup work is executed consistently across channels.
-- The final summary gives stakeholders visibility into what was created, skipped, or needs attention.
-- The pattern can reduce handoff friction and make campaign launch governance easier to audit.
+## How this n8n flow works
 
-## How the flow works
+1. **Manual Trigger (dev)**
+   - Starts the workflow for local testing and portfolio demonstration.
+   - A production implementation would usually replace or supplement this with a Webhook, form submission, CRM trigger, or campaign approval trigger.
 
-1. `Manual Trigger (dev)` starts the workflow for local testing.
-2. `Set Campaign` creates an example campaign payload.
-3. `Validate & Normalise` checks required fields, parses budget, and converts JSON strings for `channels` and `goals` into objects.
-4. Four channel branches run after validation:
-   - `Setup Email Campaign`
-   - `Setup Ads`
-   - `Setup CRM Campaign`
-   - `Notify Internal Comms`
-5. `Merge Email + Ads`, `Merge Campaign + CRM`, and `Merge Full Campaign` combine the branches back into one enriched item.
-6. `Build Summary` creates a Markdown summary of the campaign setup result.
+2. **Set Campaign**
+   - Provides sample campaign data including campaign ID, audience, dates, budget, enabled channels, goals, and optional simulated failures.
+   - In production, this data would come from a campaign intake form, CRM, project-management tool, or campaign planning database.
+
+3. **Validate & Normalise**
+   - Confirms required fields are present.
+   - Parses numeric and JSON fields.
+   - Requires at least one enabled campaign channel.
+   - Normalises the payload before orchestration begins.
+
+4. **Prepare Campaign Control**
+   - Adds campaign-level control metadata:
+     - `campaign_id`
+     - per-channel idempotency keys
+     - generated timestamp
+     - retry policy metadata
+   - The idempotency keys are based on campaign/channel/date so a retried workflow can avoid duplicate campaign creation in external systems.
+
+5. **Parallel channel setup**
+   - The workflow fans out to four channel branches:
+     - `Setup Email Campaign`
+     - `Setup Ads`
+     - `Setup CRM Campaign`
+     - `Notify Internal Comms`
+   - Each branch catches its own errors and returns a structured channel result instead of crashing the full workflow.
+   - Channel outputs include:
+     - `status`: `success`, `failed`, or `skipped`
+     - `idempotency_key`
+     - retry policy metadata
+     - created placeholder entity IDs
+     - error message when a branch fails
+
+6. **Fan-in merge**
+   - Merge nodes bring the branch outputs back together.
+   - The workflow keeps each channel result visible for final reporting.
+
+7. **Build Summary**
+   - Builds a Markdown campaign summary.
+   - Captures the overall result as:
+     - `success`
+     - `partial_success`
+     - `failed`
+   - Lists each channel's status, idempotency key, and any failure reason.
+
+8. **Log Final Output (demo)**
+   - Creates an `audit_record` containing:
+     - final status
+     - channel results
+     - idempotency keys
+     - retry policy
+     - source campaign payload
+     - final summary
+   - This node is a demo-safe placeholder. In production, replace or extend it with a durable store such as Postgres, Airtable, Google Sheets, Google Drive, Notion, object storage, or a ticketing/support system.
 
 ## Client-specific implementation requirements
 
-A production implementation should replace the placeholder Code nodes with real connectors or HTTP calls:
+For a real client deployment, the placeholder Code nodes should be replaced with actual connector or HTTP nodes:
 
-| Area | Example production replacement |
-| --- | --- |
-| Trigger | Webhook from an approval form, CRM stage change, Airtable/Notion form, or scheduled campaign intake process. |
-| Campaign input | CRM, database, spreadsheet, form submission, project-management record, or marketing ops platform. |
-| Email branch | Mailchimp, HubSpot, Customer.io, Klaviyo, ActiveCampaign, or custom email API. |
-| Ads branch | Google Ads, Meta Ads, LinkedIn Ads, or a media agency intake endpoint. |
-| CRM branch | HubSpot, Salesforce, Pipedrive, Attio, or internal CRM API. |
-| Internal comms | Slack, Microsoft Teams, email, or ticket creation. |
-| Final summary | Slack message, email, database log, campaign record update, or reporting dashboard. |
+   - Email platform: Mailchimp, HubSpot, Customer.io, Klaviyo, SendGrid, etc.
+   - Ads platforms: Meta Ads, Google Ads, LinkedIn Ads, or agency tooling.
+   - CRM: HubSpot, Salesforce, Pipedrive, Zoho, etc.
+   - Internal comms: Slack, Microsoft Teams, email, or a campaign launch channel.
+   - Durable audit store: database, spreadsheet, document store, object storage, or support/ticketing system.
 
-The client version should also define ownership rules: which team owns campaign approval, who receives failure notifications, and what data is authoritative when systems disagree.
+Each external integration should use the generated idempotency key when the destination system supports it. Where the destination does not support native idempotency, store request fingerprints in your audit database and check for existing records before creating new entities.
 
 ## Concurrency and error handling
 
-The core shape is correct: validate once, fan out, then fan back in. For production, strengthen the control layer:
+The channel setup branches run in parallel after `Prepare Campaign Control`.
 
-   - Add per-branch error handling so one failed channel does not hide the status of the other branches.
-   - Capture partial success states in the final summary.
-   - Add retry policies for external APIs with rate limits or transient failures.
-   - Use idempotency keys based on campaign ID to avoid duplicate campaign creation after retries.
-   - Log the final output to a durable store for audit and support.
+The control layer includes:
+
+   - Per-branch error handling so one failed channel does not hide the status of other branches.
+   - Partial success capture in `channel_results` and `summary_markdown`.
+   - Retry policy metadata for external APIs with rate limits or transient failures.
+   - Per-channel idempotency keys to reduce duplicate campaign creation after retries.
+   - Final audit record generation after summary creation.
+
+For production, configure retries on the actual HTTP/native connector nodes. Recommended baseline:
+
+   - Retry on `429`, `408`, network timeout, and `5xx` responses.
+   - Do not blindly retry validation errors or `4xx` client errors.
+   - Use exponential backoff and a maximum attempt count.
+   - Persist every external creation response and request fingerprint to a durable store.
+   - Alert on `partial_success` or `failed` so the campaign owner knows which channel needs manual action.
 
 ## Example data
 
-Example input and output files live in `examples/`:
+Example files are in `examples/`:
 
-- `examples/sample_input.md`
-- `examples/sample_output.md`
+- `examples/sample_input.md` — sample campaign intake payload.
+- `examples/sample_output.md` — sample final summary and audit shape.
 
-The workflow currently uses the same shape as the sample input inside the `Set Campaign` node.
+## Demo notes
+
+The included workflow is connector-agnostic. It demonstrates the orchestration and control pattern without requiring live credentials.
+
+To test partial success handling, set `simulate_failures` in `Set Campaign` to something like:
+
+```json
+{"ads": true}
+```
+
+The ads branch will return a failed status while the other branches continue and the final summary will show `partial_success`.
