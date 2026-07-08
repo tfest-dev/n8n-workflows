@@ -1,0 +1,574 @@
+{
+  "name": "Churn Risk Alerts",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1560,
+        -140
+      ],
+      "id": "manual-trigger-churn",
+      "name": "Manual Trigger (dev)"
+    },
+    {
+      "parameters": {
+        "triggerTimes": [
+          {
+            "item": {
+              "hour": 8
+            }
+          }
+        ]
+      },
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -1560,
+        60
+      ],
+      "id": "daily-schedule-churn",
+      "name": "Daily Schedule (prod)",
+      "notes": "Runs daily at 08:00 server time. Adjust schedule and timezone in n8n for each client."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "set-risk_threshold",
+              "name": "risk_threshold",
+              "value": "65",
+              "type": "string"
+            },
+            {
+              "id": "set-top_n",
+              "name": "top_n",
+              "value": "10",
+              "type": "string"
+            },
+            {
+              "id": "set-lookback_days",
+              "name": "lookback_days",
+              "value": "30",
+              "type": "string"
+            },
+            {
+              "id": "set-simulate_source_failures",
+              "name": "simulate_source_failures",
+              "value": "{}",
+              "type": "string"
+            },
+            {
+              "id": "set-usage_signals",
+              "name": "usage_signals",
+              "value": "[{\"account_id\": \"acct_acme\", \"last_active_date\": \"2026-07-05\", \"logins_30d\": 12, \"feature_events_30d\": 28, \"seats_used\": 18, \"seats_purchased\": 50, \"usage_trend_pct\": -42}, {\"account_id\": \"acct_northstar\", \"last_active_date\": \"2026-06-02\", \"logins_30d\": 1, \"feature_events_30d\": 3, \"seats_used\": 4, \"seats_purchased\": 25, \"usage_trend_pct\": -78}, {\"account_id\": \"acct_brightline\", \"last_active_date\": \"2026-07-07\", \"logins_30d\": 45, \"feature_events_30d\": 180, \"seats_used\": 42, \"seats_purchased\": 50, \"usage_trend_pct\": 12}, {\"account_id\": \"acct_harbour\", \"last_active_date\": \"2026-06-20\", \"logins_30d\": 6, \"feature_events_30d\": 18, \"seats_used\": 7, \"seats_purchased\": 30, \"usage_trend_pct\": -55}]",
+              "type": "string"
+            },
+            {
+              "id": "set-billing_signals",
+              "name": "billing_signals",
+              "value": "[{\"account_id\": \"acct_acme\", \"plan\": \"Scale\", \"mrr\": 4200, \"renewal_date\": \"2026-08-12\", \"payment_status\": \"paid\", \"downgrade_requested\": false}, {\"account_id\": \"acct_northstar\", \"plan\": \"Growth\", \"mrr\": 2800, \"renewal_date\": \"2026-07-28\", \"payment_status\": \"failed\", \"downgrade_requested\": true}, {\"account_id\": \"acct_brightline\", \"plan\": \"Enterprise\", \"mrr\": 9200, \"renewal_date\": \"2026-11-01\", \"payment_status\": \"paid\", \"downgrade_requested\": false}, {\"account_id\": \"acct_harbour\", \"plan\": \"Scale\", \"mrr\": 5100, \"renewal_date\": \"2026-08-05\", \"payment_status\": \"paid\", \"downgrade_requested\": false}]",
+              "type": "string"
+            },
+            {
+              "id": "set-crm_signals",
+              "name": "crm_signals",
+              "value": "[{\"account_id\": \"acct_acme\", \"account_name\": \"Acme Manufacturing\", \"owner\": \"Priya Shah\", \"health_status\": \"yellow\", \"last_qbr_date\": \"2026-05-20\", \"executive_sponsor_engaged\": false}, {\"account_id\": \"acct_northstar\", \"account_name\": \"Northstar Logistics\", \"owner\": \"Daniel Green\", \"health_status\": \"red\", \"last_qbr_date\": \"2026-03-15\", \"executive_sponsor_engaged\": false}, {\"account_id\": \"acct_brightline\", \"account_name\": \"Brightline Retail\", \"owner\": \"Maya Patel\", \"health_status\": \"green\", \"last_qbr_date\": \"2026-06-25\", \"executive_sponsor_engaged\": true}, {\"account_id\": \"acct_harbour\", \"account_name\": \"Harbour Finance\", \"owner\": \"Priya Shah\", \"health_status\": \"yellow\", \"last_qbr_date\": \"2026-04-18\", \"executive_sponsor_engaged\": false}]",
+              "type": "string"
+            },
+            {
+              "id": "set-support_signals",
+              "name": "support_signals",
+              "value": "[{\"account_id\": \"acct_acme\", \"high_priority_tickets_30d\": 2, \"open_tickets\": 3, \"csat_avg\": 3.2, \"nps_score\": 4, \"themes\": [\"slow onboarding\", \"integration confusion\"]}, {\"account_id\": \"acct_northstar\", \"high_priority_tickets_30d\": 5, \"open_tickets\": 9, \"csat_avg\": 2.1, \"nps_score\": 1, \"themes\": [\"billing issue\", \"poor adoption\", \"renewal uncertainty\"]}, {\"account_id\": \"acct_brightline\", \"high_priority_tickets_30d\": 0, \"open_tickets\": 1, \"csat_avg\": 4.6, \"nps_score\": 9, \"themes\": [\"feature request\"]}, {\"account_id\": \"acct_harbour\", \"high_priority_tickets_30d\": 1, \"open_tickets\": 4, \"csat_avg\": 3.0, \"nps_score\": 5, \"themes\": [\"training gaps\", \"slow response\"]}]",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1340,
+        -140
+      ],
+      "id": "set-example-source-inputs",
+      "name": "Set Example Source Inputs",
+      "notes": "Static demo source payloads. Replace with analytics, billing, CRM and support connectors in production."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\n\nfunction parseJsonField(name, fallback) {\n  const value = source[name];\n  if (value === undefined || value === null || value === '') return fallback;\n  if (typeof value !== 'string') return value;\n  try {\n    return JSON.parse(value);\n  } catch (error) {\n    throw new Error(`${name} must be valid JSON: ${error.message}`);\n  }\n}\n\nconst riskThreshold = Number(source.risk_threshold ?? 65);\nconst topN = Number(source.top_n ?? 10);\nconst lookbackDays = Number(source.lookback_days ?? 30);\n\nif (!Number.isFinite(riskThreshold) || riskThreshold < 0 || riskThreshold > 100) {\n  throw new Error('risk_threshold must be a number between 0 and 100');\n}\nif (!Number.isInteger(topN) || topN < 1 || topN > 100) {\n  throw new Error('top_n must be an integer between 1 and 100');\n}\nif (!Number.isInteger(lookbackDays) || lookbackDays < 1 || lookbackDays > 365) {\n  throw new Error('lookback_days must be an integer between 1 and 365');\n}\n\nconst usageSignals = parseJsonField('usage_signals', []);\nconst billingSignals = parseJsonField('billing_signals', []);\nconst crmSignals = parseJsonField('crm_signals', []);\nconst supportSignals = parseJsonField('support_signals', []);\nconst simulateSourceFailures = parseJsonField('simulate_source_failures', {});\n\nfor (const [name, value] of Object.entries({ usageSignals, billingSignals, crmSignals, supportSignals })) {\n  if (!Array.isArray(value)) {\n    throw new Error(`${name} must be an array`);\n  }\n}\n\nconst runDate = new Date().toISOString().slice(0, 10);\nconst scoringVersion = 'churn-risk-rules-v2';\n\nreturn [{\n  json: {\n    risk_threshold: riskThreshold,\n    top_n: topN,\n    lookback_days: lookbackDays,\n    source_payloads: {\n      usage: usageSignals,\n      billing: billingSignals,\n      crm: crmSignals,\n      support: supportSignals,\n    },\n    simulate_source_failures: simulateSourceFailures,\n    control: {\n      run_date: runDate,\n      scoring_version: scoringVersion,\n      retry_policy: {\n        max_attempts: 3,\n        timeout_ms: 30000,\n        backoff: 'exponential',\n        retry_on: ['429', '408', '5xx', 'network_timeout'],\n      },\n      source_names: ['usage', 'billing', 'crm', 'support'],\n      data_minimisation: 'Send account-level summaries only. Avoid raw transcripts and unnecessary personal data in optional LLM steps.',\n    },\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1120,
+        -140
+      ],
+      "id": "validate-inputs-control",
+      "name": "Validate Inputs / Control Config",
+      "notes": "Validates thresholds and parses source payloads. Adds retry metadata, scoring version and data-minimisation guidance."
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = { ...items[0].json };\nconst sourceName = 'usage';\nconst checkedAt = new Date().toISOString();\n\nfunction daysBetween(dateA, dateB) {\n  const a = new Date(`${dateA}T00:00:00Z`);\n  const b = new Date(`${dateB}T00:00:00Z`);\n  return Math.round((b - a) / 86400000);\n}\n\ntry {\n  if (root.simulate_source_failures?.[sourceName]) {\n    throw new Error(`Simulated ${sourceName} source failure`);\n  }\n\n  const rawRecords = root.source_payloads?.[sourceName] ?? [];\n  const warnings = [];\n  const records = [];\n\n  for (const record of rawRecords) {\n    if (!record || typeof record !== 'object' || !record.account_id) {\n      warnings.push(`Dropped ${sourceName} record without account_id`);\n      continue;\n    }\n    records.push(record);\n  }\n\n  let status = 'success';\n  if (records.length === 0) status = 'empty';\n  else if (warnings.length > 0) status = 'partial';\n\n  const result = {\n    source: sourceName,\n    status,\n    checked_at: checkedAt,\n    source_timestamp: checkedAt,\n    record_count: records.length,\n    records,\n    warnings,\n    retry_policy: root.control?.retry_policy,\n  };\n\n  return [{\n    json: {\n      ...root,\n      [`${sourceName}_source_result`]: result,\n    },\n  }];\n} catch (error) {\n  const result = {\n    source: sourceName,\n    status: 'failed',\n    checked_at: checkedAt,\n    source_timestamp: null,\n    record_count: 0,\n    records: [],\n    warnings: [`${sourceName} source unavailable`],\n    error: error.message,\n    retry_policy: root.control?.retry_policy,\n  };\n\n  return [{\n    json: {\n      ...root,\n      [`${sourceName}_source_result`]: result,\n    },\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        -420
+      ],
+      "id": "collect-usage",
+      "name": "Collect Usage Signals",
+      "notes": "Demo usage source branch. Replace with product analytics or warehouse query nodes with retry and timeout settings."
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = { ...items[0].json };\nconst sourceName = 'billing';\nconst checkedAt = new Date().toISOString();\n\nfunction daysBetween(dateA, dateB) {\n  const a = new Date(`${dateA}T00:00:00Z`);\n  const b = new Date(`${dateB}T00:00:00Z`);\n  return Math.round((b - a) / 86400000);\n}\n\ntry {\n  if (root.simulate_source_failures?.[sourceName]) {\n    throw new Error(`Simulated ${sourceName} source failure`);\n  }\n\n  const rawRecords = root.source_payloads?.[sourceName] ?? [];\n  const warnings = [];\n  const records = [];\n\n  for (const record of rawRecords) {\n    if (!record || typeof record !== 'object' || !record.account_id) {\n      warnings.push(`Dropped ${sourceName} record without account_id`);\n      continue;\n    }\n    records.push(record);\n  }\n\n  let status = 'success';\n  if (records.length === 0) status = 'empty';\n  else if (warnings.length > 0) status = 'partial';\n\n  const result = {\n    source: sourceName,\n    status,\n    checked_at: checkedAt,\n    source_timestamp: checkedAt,\n    record_count: records.length,\n    records,\n    warnings,\n    retry_policy: root.control?.retry_policy,\n  };\n\n  return [{\n    json: {\n      ...root,\n      [`${sourceName}_source_result`]: result,\n    },\n  }];\n} catch (error) {\n  const result = {\n    source: sourceName,\n    status: 'failed',\n    checked_at: checkedAt,\n    source_timestamp: null,\n    record_count: 0,\n    records: [],\n    warnings: [`${sourceName} source unavailable`],\n    error: error.message,\n    retry_policy: root.control?.retry_policy,\n  };\n\n  return [{\n    json: {\n      ...root,\n      [`${sourceName}_source_result`]: result,\n    },\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        -220
+      ],
+      "id": "collect-billing",
+      "name": "Collect Billing Signals",
+      "notes": "Demo billing source branch. Replace with Stripe, Chargebee, Xero, QuickBooks or finance database nodes."
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = { ...items[0].json };\nconst sourceName = 'crm';\nconst checkedAt = new Date().toISOString();\n\nfunction daysBetween(dateA, dateB) {\n  const a = new Date(`${dateA}T00:00:00Z`);\n  const b = new Date(`${dateB}T00:00:00Z`);\n  return Math.round((b - a) / 86400000);\n}\n\ntry {\n  if (root.simulate_source_failures?.[sourceName]) {\n    throw new Error(`Simulated ${sourceName} source failure`);\n  }\n\n  const rawRecords = root.source_payloads?.[sourceName] ?? [];\n  const warnings = [];\n  const records = [];\n\n  for (const record of rawRecords) {\n    if (!record || typeof record !== 'object' || !record.account_id) {\n      warnings.push(`Dropped ${sourceName} record without account_id`);\n      continue;\n    }\n    records.push(record);\n  }\n\n  let status = 'success';\n  if (records.length === 0) status = 'empty';\n  else if (warnings.length > 0) status = 'partial';\n\n  const result = {\n    source: sourceName,\n    status,\n    checked_at: checkedAt,\n    source_timestamp: checkedAt,\n    record_count: records.length,\n    records,\n    warnings,\n    retry_policy: root.control?.retry_policy,\n  };\n\n  return [{\n    json: {\n      ...root,\n      [`${sourceName}_source_result`]: result,\n    },\n  }];\n} catch (error) {\n  const result = {\n    source: sourceName,\n    status: 'failed',\n    checked_at: checkedAt,\n    source_timestamp: null,\n    record_count: 0,\n    records: [],\n    warnings: [`${sourceName} source unavailable`],\n    error: error.message,\n    retry_policy: root.control?.retry_policy,\n  };\n\n  return [{\n    json: {\n      ...root,\n      [`${sourceName}_source_result`]: result,\n    },\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        -20
+      ],
+      "id": "collect-crm",
+      "name": "Collect CRM Signals",
+      "notes": "Demo CRM source branch. Replace with Salesforce, HubSpot or internal customer table nodes."
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = { ...items[0].json };\nconst sourceName = 'support';\nconst checkedAt = new Date().toISOString();\n\nfunction daysBetween(dateA, dateB) {\n  const a = new Date(`${dateA}T00:00:00Z`);\n  const b = new Date(`${dateB}T00:00:00Z`);\n  return Math.round((b - a) / 86400000);\n}\n\ntry {\n  if (root.simulate_source_failures?.[sourceName]) {\n    throw new Error(`Simulated ${sourceName} source failure`);\n  }\n\n  const rawRecords = root.source_payloads?.[sourceName] ?? [];\n  const warnings = [];\n  const records = [];\n\n  for (const record of rawRecords) {\n    if (!record || typeof record !== 'object' || !record.account_id) {\n      warnings.push(`Dropped ${sourceName} record without account_id`);\n      continue;\n    }\n    records.push(record);\n  }\n\n  let status = 'success';\n  if (records.length === 0) status = 'empty';\n  else if (warnings.length > 0) status = 'partial';\n\n  const result = {\n    source: sourceName,\n    status,\n    checked_at: checkedAt,\n    source_timestamp: checkedAt,\n    record_count: records.length,\n    records,\n    warnings,\n    retry_policy: root.control?.retry_policy,\n  };\n\n  return [{\n    json: {\n      ...root,\n      [`${sourceName}_source_result`]: result,\n    },\n  }];\n} catch (error) {\n  const result = {\n    source: sourceName,\n    status: 'failed',\n    checked_at: checkedAt,\n    source_timestamp: null,\n    record_count: 0,\n    records: [],\n    warnings: [`${sourceName} source unavailable`],\n    error: error.message,\n    retry_policy: root.control?.retry_policy,\n  };\n\n  return [{\n    json: {\n      ...root,\n      [`${sourceName}_source_result`]: result,\n    },\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        180
+      ],
+      "id": "collect-support",
+      "name": "Collect Support Signals",
+      "notes": "Demo support source branch. Replace with Zendesk, Intercom, Freshdesk, CSAT/NPS or helpdesk nodes."
+    },
+    {
+      "parameters": {
+        "mode": "mergeByIndex"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        -320
+      ],
+      "id": "merge-usage-billing",
+      "name": "Merge Usage + Billing"
+    },
+    {
+      "parameters": {
+        "mode": "mergeByIndex"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        80
+      ],
+      "id": "merge-crm-support",
+      "name": "Merge CRM + Support"
+    },
+    {
+      "parameters": {
+        "mode": "mergeByIndex"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        -360,
+        -120
+      ],
+      "id": "merge-all-sources",
+      "name": "Merge All Sources"
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = items[0]?.json ?? {};\nconst sourceResults = Object.fromEntries((root.control?.source_names ?? ['usage', 'billing', 'crm', 'support']).map(name => [name, root[`${name}_source_result`]]));\nconst runDate = root.control?.run_date ?? new Date().toISOString().slice(0, 10);\nconst sourceWarnings = [];\nconst sourceStatuses = {};\n\nfor (const sourceName of root.control?.source_names ?? ['usage', 'billing', 'crm', 'support']) {\n  const result = sourceResults[sourceName] ?? { status: 'failed', warnings: [`${sourceName} source missing from workflow output`] };\n  sourceStatuses[sourceName] = {\n    status: result.status,\n    checked_at: result.checked_at,\n    source_timestamp: result.source_timestamp,\n    record_count: result.record_count ?? 0,\n    error: result.error,\n    warnings: result.warnings ?? [],\n  };\n\n  if (['failed', 'empty', 'partial'].includes(result.status)) {\n    sourceWarnings.push(`${sourceName}: ${result.status}${result.error ? ` (${result.error})` : ''}`);\n  }\n}\n\nfunction daysUntil(dateString) {\n  if (!dateString) return null;\n  const date = new Date(`${dateString}T00:00:00Z`);\n  if (Number.isNaN(date.getTime())) return null;\n  const now = new Date(`${runDate}T00:00:00Z`);\n  return Math.ceil((date - now) / 86400000);\n}\n\nfunction byAccount(records = []) {\n  const map = new Map();\n  for (const record of records) {\n    if (record?.account_id) map.set(record.account_id, record);\n  }\n  return map;\n}\n\nconst usageByAccount = byAccount(sourceResults.usage?.records);\nconst billingByAccount = byAccount(sourceResults.billing?.records);\nconst crmByAccount = byAccount(sourceResults.crm?.records);\nconst supportByAccount = byAccount(sourceResults.support?.records);\n\nconst accountIds = new Set([\n  ...usageByAccount.keys(),\n  ...billingByAccount.keys(),\n  ...crmByAccount.keys(),\n  ...supportByAccount.keys(),\n]);\n\nconst accounts = [...accountIds].sort().map(accountId => {\n  const usage = usageByAccount.get(accountId) ?? null;\n  const billing = billingByAccount.get(accountId) ?? null;\n  const crm = crmByAccount.get(accountId) ?? null;\n  const support = supportByAccount.get(accountId) ?? null;\n\n  const missingSources = [];\n  if (!usage) missingSources.push('usage');\n  if (!billing) missingSources.push('billing');\n  if (!crm) missingSources.push('crm');\n  if (!support) missingSources.push('support');\n\n  const seatsUsed = Number(usage?.seats_used ?? 0);\n  const seatsPurchased = Number(usage?.seats_purchased ?? 0);\n  const seatUtilisationPct = seatsPurchased > 0 ? Math.round((seatsUsed / seatsPurchased) * 100) : null;\n\n  return {\n    account_id: accountId,\n    account_name: crm?.account_name ?? accountId,\n    owner: crm?.owner ?? 'Unassigned',\n    plan: billing?.plan ?? 'unknown',\n    mrr: Number(billing?.mrr ?? 0),\n    renewal_date: billing?.renewal_date ?? null,\n    days_to_renewal: daysUntil(billing?.renewal_date),\n    payment_status: billing?.payment_status ?? 'unknown',\n    downgrade_requested: Boolean(billing?.downgrade_requested),\n    last_active_date: usage?.last_active_date ?? null,\n    logins_30d: Number(usage?.logins_30d ?? 0),\n    feature_events_30d: Number(usage?.feature_events_30d ?? 0),\n    usage_trend_pct: Number(usage?.usage_trend_pct ?? 0),\n    seats_used: seatsUsed,\n    seats_purchased: seatsPurchased,\n    seat_utilisation_pct: seatUtilisationPct,\n    health_status: crm?.health_status ?? 'unknown',\n    last_qbr_date: crm?.last_qbr_date ?? null,\n    executive_sponsor_engaged: Boolean(crm?.executive_sponsor_engaged),\n    high_priority_tickets_30d: Number(support?.high_priority_tickets_30d ?? 0),\n    open_tickets: Number(support?.open_tickets ?? 0),\n    csat_avg: support?.csat_avg ?? null,\n    nps_score: support?.nps_score ?? null,\n    support_themes: support?.themes ?? [],\n    missing_sources: missingSources,\n  };\n});\n\nif (accounts.length === 0) {\n  throw new Error('No account records available after source collection');\n}\n\nreturn [{\n  json: {\n    ...root,\n    accounts,\n    source_statuses: sourceStatuses,\n    source_warnings: sourceWarnings,\n    aggregation_status: sourceWarnings.length ? 'partial' : 'success',\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -120,
+        -120
+      ],
+      "id": "aggregate-account-signals",
+      "name": "Aggregate Account Signals",
+      "notes": "Combines available source records by account. Missing or failed sources remain visible in source_statuses and source_warnings."
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = items[0]?.json ?? {};\nconst alerts = [];\n\nfor (const [sourceName, status] of Object.entries(root.source_statuses ?? {})) {\n  if (['failed', 'partial', 'empty'].includes(status.status)) {\n    alerts.push({\n      alert_type: 'churn_source_collection_issue',\n      source: sourceName,\n      status: status.status,\n      checked_at: status.checked_at,\n      error: status.error ?? null,\n      warnings: status.warnings ?? [],\n      recommended_action: `Review ${sourceName} source connector, credentials, rate limits and freshness before relying on today's churn-risk watchlist.`,\n    });\n  }\n}\n\nreturn [{\n  json: {\n    ...root,\n    operations_alerts: alerts,\n    operations_alert_status: alerts.length ? 'prepared' : 'not_required',\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        -120
+      ],
+      "id": "prepare-source-failure-alerts",
+      "name": "Prepare Source Failure Alerts",
+      "notes": "Prepares operations alert payloads for failed, empty or partial source branches. Replace or extend with Slack, email or incident tooling."
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = items[0]?.json ?? {};\nconst runDate = root.control?.run_date ?? new Date().toISOString().slice(0, 10);\n\nfunction daysSince(dateString) {\n  if (!dateString) return null;\n  const date = new Date(`${dateString}T00:00:00Z`);\n  if (Number.isNaN(date.getTime())) return null;\n  const now = new Date(`${runDate}T00:00:00Z`);\n  return Math.floor((now - date) / 86400000);\n}\n\nfunction severity(score) {\n  if (score >= 85) return 'critical';\n  if (score >= 70) return 'high';\n  if (score >= 45) return 'medium';\n  return 'low';\n}\n\nconst scored_accounts = (root.accounts ?? []).map(account => {\n  let score = 0;\n  const reasons = [];\n\n  const inactiveDays = daysSince(account.last_active_date);\n  if (inactiveDays !== null && inactiveDays >= 30) { score += 25; reasons.push(`No product activity for ${inactiveDays} days`); }\n  else if (inactiveDays !== null && inactiveDays >= 14) { score += 15; reasons.push(`Reduced activity: ${inactiveDays} days since last active`); }\n\n  if (account.usage_trend_pct <= -60) { score += 20; reasons.push(`Usage down ${Math.abs(account.usage_trend_pct)}%`); }\n  else if (account.usage_trend_pct <= -30) { score += 12; reasons.push(`Usage down ${Math.abs(account.usage_trend_pct)}%`); }\n\n  if (account.seat_utilisation_pct !== null && account.seat_utilisation_pct < 30) { score += 15; reasons.push(`Low seat utilisation at ${account.seat_utilisation_pct}%`); }\n  else if (account.seat_utilisation_pct !== null && account.seat_utilisation_pct < 50) { score += 8; reasons.push(`Seat utilisation below target at ${account.seat_utilisation_pct}%`); }\n\n  if (account.days_to_renewal !== null && account.days_to_renewal <= 30) { score += 18; reasons.push(`Renewal in ${account.days_to_renewal} days`); }\n  else if (account.days_to_renewal !== null && account.days_to_renewal <= 60) { score += 10; reasons.push(`Renewal in ${account.days_to_renewal} days`); }\n\n  if (account.payment_status === 'failed') { score += 18; reasons.push('Recent failed payment'); }\n  if (account.downgrade_requested) { score += 20; reasons.push('Downgrade requested'); }\n\n  if (account.health_status === 'red') { score += 18; reasons.push('CRM health status is red'); }\n  else if (account.health_status === 'yellow') { score += 8; reasons.push('CRM health status is yellow'); }\n\n  if (!account.executive_sponsor_engaged && account.mrr >= 4000) { score += 8; reasons.push('No executive sponsor engagement on material account'); }\n\n  if (account.high_priority_tickets_30d >= 4) { score += 18; reasons.push(`${account.high_priority_tickets_30d} high-priority support tickets in 30 days`); }\n  else if (account.high_priority_tickets_30d >= 1) { score += 8; reasons.push(`${account.high_priority_tickets_30d} high-priority support ticket(s) in 30 days`); }\n\n  if (typeof account.csat_avg === 'number' && account.csat_avg < 3) { score += 12; reasons.push(`Low CSAT average: ${account.csat_avg}`); }\n  if (typeof account.nps_score === 'number' && account.nps_score <= 4) { score += 12; reasons.push(`Low NPS score: ${account.nps_score}`); }\n\n  if ((account.missing_sources ?? []).length) {\n    score += Math.min(10, account.missing_sources.length * 3);\n    reasons.push(`Scored with missing sources: ${account.missing_sources.join(', ')}`);\n  }\n\n  score = Math.min(100, score);\n  const risk_severity = severity(score);\n  const topReasons = reasons.slice(0, 5);\n  const outreachAngle = topReasons.length\n    ? `Prioritise a ${risk_severity} risk check-in focused on ${topReasons[0].toLowerCase()}.`\n    : 'Keep in standard success cadence; no urgent churn signal detected.';\n\n  return {\n    ...account,\n    risk_score: score,\n    risk_severity,\n    risk_reasons: topReasons,\n    outreach_angle: outreachAngle,\n    idempotency_key: `${account.account_id}:${account.renewal_date ?? 'no-renewal'}:${root.control?.scoring_version ?? 'rules'}`,\n    score_source: 'deterministic_rules',\n  };\n});\n\nreturn [{\n  json: {\n    ...root,\n    scored_accounts,\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        360,
+        -120
+      ],
+      "id": "score-churn-risk",
+      "name": "Score Churn Risk",
+      "notes": "Applies transparent churn-risk rules. This remains the decision authority even when optional LLM wording is added later."
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = items[0]?.json ?? {};\nconst llmDataPolicy = {\n  mode: 'optional_private_or_approved_model',\n  allowed_fields: ['account_name', 'owner', 'plan', 'risk_score', 'risk_severity', 'risk_reasons', 'missing_sources', 'support_themes'],\n  excluded_fields: ['raw_ticket_transcripts', 'personal_contact_details', 'full_financial_records'],\n  decision_boundary: 'LLM drafts wording only. Rule-based score remains the authority.',\n};\n\nconst scored_accounts = (root.scored_accounts ?? []).map(account => {\n  const minimalInput = {\n    account_name: account.account_name,\n    owner: account.owner,\n    plan: account.plan,\n    risk_score: account.risk_score,\n    risk_severity: account.risk_severity,\n    risk_reasons: account.risk_reasons,\n    missing_sources: account.missing_sources,\n    support_themes: account.support_themes,\n  };\n\n  const prompt = [\n    'Draft a concise customer-success outreach note using only this account-level summary.',\n    'Do not infer personal details. Do not change the risk score. Keep the message practical and non-alarmist.',\n    JSON.stringify(minimalInput, null, 2),\n  ].join('\\n\\n');\n\n  const draft = account.risk_score >= root.risk_threshold\n    ? `Suggested outreach: ${account.owner} should contact ${account.account_name} with a practical recovery plan covering ${account.risk_reasons.join('; ')}.`\n    : 'Suggested outreach: maintain normal success cadence.';\n\n  return {\n    ...account,\n    llm_usage: {\n      status: 'demo_template_prepared',\n      prompt,\n      data_policy: llmDataPolicy,\n      drafted_summary: draft,\n    },\n  };\n});\n\nreturn [{\n  json: {\n    ...root,\n    scored_accounts,\n    optional_llm_usage: {\n      status: 'included_as_demo_template',\n      data_policy: llmDataPolicy,\n      implementation_note: 'Replace this Code node with a local or approved private LLM call if the client wants personalised wording.',\n    },\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        -120
+      ],
+      "id": "prepare-optional-llm-outreach",
+      "name": "Prepare Optional LLM Outreach Drafts",
+      "notes": "Prepares minimal account-level LLM prompts and demo outreach wording. Replace with a local/private LLM node only after data-handling rules are agreed."
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = items[0]?.json ?? {};\nconst threshold = Number(root.risk_threshold ?? 65);\nconst topN = Number(root.top_n ?? 10);\n\nconst watchlist = (root.scored_accounts ?? [])\n  .filter(account => account.risk_score >= threshold)\n  .sort((a, b) => {\n    if (b.risk_score !== a.risk_score) return b.risk_score - a.risk_score;\n    if (b.mrr !== a.mrr) return b.mrr - a.mrr;\n    return String(a.account_id).localeCompare(String(b.account_id));\n  })\n  .slice(0, topN);\n\nreturn [{\n  json: {\n    ...root,\n    watchlist,\n    watchlist_count: watchlist.length,\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        -120
+      ],
+      "id": "filter-rank-watchlist",
+      "name": "Filter / Rank Watchlist",
+      "notes": "Filters above threshold, sorts deterministically and limits to top N accounts."
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = items[0]?.json ?? {};\nconst lines = [];\nlines.push('# Churn Risk Watchlist');\nlines.push('');\nlines.push(`Run date: ${root.control?.run_date}`);\nlines.push(`Scoring version: ${root.control?.scoring_version}`);\nlines.push(`Threshold: ${root.risk_threshold}`);\nlines.push(`Accounts on watchlist: ${root.watchlist_count}`);\nlines.push(`Aggregation status: ${root.aggregation_status}`);\nlines.push('');\n\nlines.push('## Source status');\nfor (const [sourceName, status] of Object.entries(root.source_statuses ?? {})) {\n  const parts = [`${sourceName}: ${status.status}`, `${status.record_count ?? 0} records`];\n  if (status.checked_at) parts.push(`checked ${status.checked_at}`);\n  if (status.error) parts.push(`error: ${status.error}`);\n  lines.push(`- ${parts.join(' | ')}`);\n}\n\nif ((root.source_warnings ?? []).length) {\n  lines.push('');\n  lines.push('## Missing-source warnings');\n  for (const warning of root.source_warnings) lines.push(`- ${warning}`);\n}\n\nlines.push('');\nlines.push('## Priority accounts');\n\nif (!(root.watchlist ?? []).length) {\n  lines.push('- No accounts met the configured risk threshold.');\n} else {\n  for (const account of root.watchlist) {\n    lines.push(`- **${account.account_name}** (${account.account_id}) \u2014 ${account.risk_severity} risk, score ${account.risk_score}, MRR \u00a3/${account.mrr}`.replace('\u00a3/', ''));\n    lines.push(`  - Owner: ${account.owner}`);\n    lines.push(`  - Renewal: ${account.renewal_date ?? 'unknown'} (${account.days_to_renewal ?? 'unknown'} days)`);\n    lines.push(`  - Reasons: ${(account.risk_reasons ?? []).join('; ') || 'No major reason captured'}`);\n    lines.push(`  - Outreach: ${account.llm_usage?.drafted_summary ?? account.outreach_angle}`);\n    if ((account.missing_sources ?? []).length) lines.push(`  - Missing signals: ${account.missing_sources.join(', ')}`);\n  }\n}\n\nif ((root.operations_alerts ?? []).length) {\n  lines.push('');\n  lines.push('## Operations alerts');\n  for (const alert of root.operations_alerts) {\n    lines.push(`- ${alert.source}: ${alert.status}${alert.error ? ` \u2014 ${alert.error}` : ''}`);\n  }\n}\n\nconst summary_markdown = lines.join('\\n');\n\nreturn [{\n  json: {\n    ...root,\n    summary_markdown,\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        -120
+      ],
+      "id": "build-watchlist-summary",
+      "name": "Build Watchlist Summary",
+      "notes": "Builds the customer-success watchlist with source status, missing-source warnings, reasons and outreach suggestions."
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = items[0]?.json ?? {};\nconst tasks = (root.watchlist ?? []).map(account => ({\n  task_type: 'customer_success_outreach',\n  account_id: account.account_id,\n  account_name: account.account_name,\n  owner: account.owner,\n  priority: account.risk_severity,\n  risk_score: account.risk_score,\n  idempotency_key: `cs-outreach:${account.idempotency_key}`,\n  title: `Churn-risk follow-up: ${account.account_name}`,\n  description: account.llm_usage?.drafted_summary ?? account.outreach_angle,\n  due_date_hint: account.days_to_renewal !== null && account.days_to_renewal <= 30 ? 'within_2_business_days' : 'within_1_week',\n}));\n\nreturn [{\n  json: {\n    ...root,\n    outreach_tasks: tasks,\n    outreach_task_status: tasks.length ? 'prepared' : 'not_required',\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        -120
+      ],
+      "id": "prepare-outreach-tasks",
+      "name": "Prepare Outreach Tasks (placeholder)",
+      "notes": "Prepares CRM task payloads with idempotency keys. Replace with Salesforce, HubSpot, Gainsight, Catalyst or task-management nodes."
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = items[0]?.json ?? {};\nconst notificationPayload = {\n  channel: '#customer-success',\n  subject: `Churn Risk Watchlist \u2014 ${root.control?.run_date}`,\n  markdown: root.summary_markdown,\n  idempotency_key: `churn-watchlist:${root.control?.run_date}:${root.control?.scoring_version}`,\n  watchlist_count: root.watchlist_count,\n  operations_alert_count: (root.operations_alerts ?? []).length,\n};\n\nreturn [{\n  json: {\n    ...root,\n    notification_payload: notificationPayload,\n    notification_status: 'prepared_placeholder',\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        -120
+      ],
+      "id": "prepare-cs-notification",
+      "name": "Prepare CS Notification (placeholder)",
+      "notes": "Prepares Slack/email/Teams notification payload with an idempotency key. Replace with the client notification channel."
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = items[0]?.json ?? {};\nconst auditRecord = {\n  audit_type: 'churn_risk_watchlist',\n  logged_at: new Date().toISOString(),\n  run_date: root.control?.run_date,\n  scoring_version: root.control?.scoring_version,\n  risk_threshold: root.risk_threshold,\n  aggregation_status: root.aggregation_status,\n  source_statuses: root.source_statuses,\n  source_warnings: root.source_warnings,\n  operations_alerts: root.operations_alerts,\n  watchlist_count: root.watchlist_count,\n  watchlist: root.watchlist,\n  outreach_tasks: root.outreach_tasks,\n  notification_payload: root.notification_payload,\n  optional_llm_usage: root.optional_llm_usage,\n};\n\nreturn [{\n  json: {\n    ...root,\n    audit_record: auditRecord,\n    audit_status: 'ready_for_durable_store',\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        -120
+      ],
+      "id": "log-audit-snapshot",
+      "name": "Log Audit Snapshot (demo)",
+      "notes": "Creates an audit-ready output record. Replace or extend with database, warehouse, Google Sheets, Drive, Notion or object storage."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger (dev)": {
+      "main": [
+        [
+          {
+            "node": "Set Example Source Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Schedule (prod)": {
+      "main": [
+        [
+          {
+            "node": "Set Example Source Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Example Source Inputs": {
+      "main": [
+        [
+          {
+            "node": "Validate Inputs / Control Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Inputs / Control Config": {
+      "main": [
+        [
+          {
+            "node": "Collect Usage Signals",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Collect Billing Signals",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Collect CRM Signals",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Collect Support Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Usage Signals": {
+      "main": [
+        [
+          {
+            "node": "Merge Usage + Billing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Billing Signals": {
+      "main": [
+        [
+          {
+            "node": "Merge Usage + Billing",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Collect CRM Signals": {
+      "main": [
+        [
+          {
+            "node": "Merge CRM + Support",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Support Signals": {
+      "main": [
+        [
+          {
+            "node": "Merge CRM + Support",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Usage + Billing": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge CRM + Support": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge All Sources": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Account Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Account Signals": {
+      "main": [
+        [
+          {
+            "node": "Prepare Source Failure Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Source Failure Alerts": {
+      "main": [
+        [
+          {
+            "node": "Score Churn Risk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Churn Risk": {
+      "main": [
+        [
+          {
+            "node": "Prepare Optional LLM Outreach Drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Optional LLM Outreach Drafts": {
+      "main": [
+        [
+          {
+            "node": "Filter / Rank Watchlist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter / Rank Watchlist": {
+      "main": [
+        [
+          {
+            "node": "Build Watchlist Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Watchlist Summary": {
+      "main": [
+        [
+          {
+            "node": "Prepare Outreach Tasks (placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Outreach Tasks (placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Prepare CS Notification (placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare CS Notification (placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Log Audit Snapshot (demo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "churn-risk-alerts-v2-control-layer",
+  "meta": {
+    "instanceId": "churn-risk-alerts-placeholder-instance-id"
+  },
+  "id": "ChurnRiskAlerts001",
+  "tags": []
+}

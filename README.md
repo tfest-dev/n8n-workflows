@@ -2,7 +2,7 @@
 
 Example n8n workflows for practical business automation use cases. Each workflow is designed as a connector-agnostic starting point that can be adapted for a specific client stack.
 
-The repository is structured like a small automation catalogue rather than a random dump of n8n exports. Every workflow includes:
+The repository is structured as a small automation catalogue. Every workflow includes:
 
 - A workflow-specific `README.md` explaining what it does, why it matters, how it works, implementation requirements, concurrency/error handling, and examples.
 - An importable n8n workflow `.json` file.
@@ -14,6 +14,7 @@ The repository is structured like a small automation catalogue rather than a ran
 | --- | --- | --- |
 | `multi-channel-campaign-orchestrator/` | Converts one approved campaign definition into coordinated setup work across email, ads, CRM, and internal comms. Useful where campaign launches are slow because teams duplicate setup across tools. | `multi-channel-campaign-orchestrator/multi-channel-campaign-orchestrator.json` |
 | `reports-weekly-status-local-llm/` | Generates a structured weekly leadership report from operational notes using a local LLM endpoint, with input guardrails, preview/audit checkpoints, failure-alert handling, optional approval placeholder, and email delivery. Useful where teams need consistent reporting without sending sensitive business context to third-party LLM APIs. | `reports-weekly-status-local-llm/reports-weekly-status-local-llm.json` |
+| `churn-risk-alerts/` | Builds a customer success churn-risk watchlist from usage, billing, CRM and support signals, with source-status handling, partial-data scoring, optional LLM wording, outreach task preparation and audit logging. Useful where CS teams need proactive retention visibility. | `churn-risk-alerts/churn-risk-alerts.json` |
 
 ## Using the workflows
 
@@ -26,4 +27,4 @@ The repository is structured like a small automation catalogue rather than a ran
 
 ## Implementation stance
 
-These workflows are portfolio-ready templates, not plug-and-play SaaS products. The business logic, control flow, and client implementation notes are the value. Real deployments should replace placeholder Code nodes and static data with authenticated connectors, client-specific data sources, proper credentials, and production error handling.
+These workflows are portfolio-ready templates for business automation discovery and client adaptation. Real deployments should replace placeholder Code nodes and static data with authenticated connectors, client-specific data sources, proper credentials, durable logging, and production error handling.
