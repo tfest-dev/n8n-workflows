@@ -1,0 +1,572 @@
+{
+  "name": "Invoice Collections Automation",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1320,
+        -260
+      ],
+      "id": "inv-manual-001",
+      "name": "Manual Trigger (dev)",
+      "notes": "Manual trigger for local testing. Production runs normally use the daily schedule."
+    },
+    {
+      "parameters": {
+        "triggerTimes": [
+          {
+            "item": {
+              "hour": 9
+            }
+          }
+        ]
+      },
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -1320,
+        -80
+      ],
+      "id": "inv-cron-001",
+      "name": "Daily Schedule (prod)",
+      "notes": "Runs daily at 09:00 server time. Adjust schedule and timezone behaviour in n8n for the client environment."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "inv-set-001",
+              "name": "minimum_amount",
+              "value": "100",
+              "type": "string"
+            },
+            {
+              "id": "inv-set-002",
+              "name": "reminder_days",
+              "value": "7",
+              "type": "string"
+            },
+            {
+              "id": "inv-set-003",
+              "name": "escalation_days",
+              "value": "30",
+              "type": "string"
+            },
+            {
+              "id": "inv-set-004",
+              "name": "severe_escalation_days",
+              "value": "60",
+              "type": "string"
+            },
+            {
+              "id": "inv-set-005",
+              "name": "currency_default",
+              "value": "USD",
+              "type": "string"
+            },
+            {
+              "id": "inv-set-006",
+              "name": "finance_alert_channel",
+              "value": "#finance-collections",
+              "type": "string"
+            },
+            {
+              "id": "inv-set-007",
+              "name": "simulate_source_status",
+              "value": "success",
+              "type": "string"
+            },
+            {
+              "id": "inv-set-008",
+              "name": "simulate_failures",
+              "value": "{}",
+              "type": "string"
+            },
+            {
+              "id": "inv-set-009",
+              "name": "invoices",
+              "value": "[{\"invoice_id\": \"inv_1001\", \"customer_name\": \"Acme Corp\", \"customer_email\": \"billing@acme.com\", \"owner_email\": \"jane@yourcompany.com\", \"amount_due\": 4200, \"currency\": \"USD\", \"days_overdue\": 12, \"status\": \"past_due\", \"written_off\": false, \"last_reminder_sent_at\": null, \"invoice_url\": \"https://billing.example.test/invoices/inv_1001\", \"account_id\": \"acct_acme\"}, {\"invoice_id\": \"inv_1002\", \"customer_name\": \"Beta Inc\", \"customer_email\": \"ap@beta.inc\", \"owner_email\": \"tom@yourcompany.com\", \"amount_due\": 9800, \"currency\": \"USD\", \"days_overdue\": 45, \"status\": \"past_due\", \"written_off\": false, \"last_reminder_sent_at\": \"2026-07-01\", \"invoice_url\": \"https://billing.example.test/invoices/inv_1002\", \"account_id\": \"acct_beta\"}, {\"invoice_id\": \"inv_1003\", \"customer_name\": \"Contoso Ltd\", \"customer_email\": \"finance@contoso.example\", \"owner_email\": \"maya@yourcompany.com\", \"amount_due\": 18800, \"currency\": \"USD\", \"days_overdue\": 66, \"status\": \"past_due\", \"written_off\": false, \"last_reminder_sent_at\": \"2026-06-20\", \"invoice_url\": \"https://billing.example.test/invoices/inv_1003\", \"account_id\": \"acct_contoso\"}, {\"invoice_id\": \"inv_1004\", \"customer_name\": \"Small Trial Co\", \"customer_email\": \"owner@trial.example\", \"owner_email\": \"jane@yourcompany.com\", \"amount_due\": 49, \"currency\": \"USD\", \"days_overdue\": 22, \"status\": \"past_due\", \"written_off\": false, \"last_reminder_sent_at\": null, \"invoice_url\": \"https://billing.example.test/invoices/inv_1004\", \"account_id\": \"acct_trial\"}]",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1100,
+        -260
+      ],
+      "id": "inv-set-001",
+      "name": "Set Example Invoice Inputs",
+      "notes": "Static demo input. Replace with billing-system connector output in a client implementation."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nfunction positiveNumber(field, fallback) {\n  const value = Number(source[field] ?? fallback);\n  if (!Number.isFinite(value) || value < 0) throw new Error(`${field} must be a non-negative number`);\n  return value;\n}\nlet invoices; let simulateFailures;\ntry { invoices = typeof source.invoices === 'string' ? JSON.parse(source.invoices) : source.invoices; } catch { throw new Error('invoices must be valid JSON'); }\ntry { simulateFailures = typeof source.simulate_failures === 'string' ? JSON.parse(source.simulate_failures) : (source.simulate_failures ?? {}); } catch { throw new Error('simulate_failures must be valid JSON'); }\nif (!Array.isArray(invoices)) throw new Error('invoices must be an array');\nconst config = {\n  minimum_amount: positiveNumber('minimum_amount', 100),\n  reminder_days: positiveNumber('reminder_days', 7),\n  escalation_days: positiveNumber('escalation_days', 30),\n  severe_escalation_days: positiveNumber('severe_escalation_days', 60),\n  currency_default: source.currency_default || 'USD',\n  finance_alert_channel: source.finance_alert_channel || '#finance-collections',\n  simulate_source_status: source.simulate_source_status || 'success',\n  simulate_failures: simulateFailures,\n  run_id: `collections-${new Date().toISOString().slice(0, 10)}-${Date.now()}`,\n  retry_policy: { max_attempts: 3, backoff: 'exponential', retry_on: ['429', '408', '5xx', 'network_timeout'] },\n};\nif (config.escalation_days < config.reminder_days) throw new Error('escalation_days must be greater than or equal to reminder_days');\nif (config.severe_escalation_days < config.escalation_days) throw new Error('severe_escalation_days must be greater than or equal to escalation_days');\nreturn [{ json: { config, raw_invoices: invoices } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        -260
+      ],
+      "id": "inv-validate-001",
+      "name": "Validate Config / Guardrails",
+      "notes": "Validates thresholds, parses invoice payloads and prepares control config before any collection action is prepared."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst config = source.config;\nconst checkedAt = new Date().toISOString();\nconst status = config.simulate_source_status;\nif (status === 'failed') {\n  return [{ json: { ...source, invoices: [], billing_source_status: { source: 'billing', status: 'failed', checked_at: checkedAt, completed_at: new Date().toISOString(), source_timestamp: null, records_returned: 0, error: 'Simulated billing API unavailable', retry_policy: config.retry_policy } } }];\n}\nlet invoices = source.raw_invoices ?? [];\nif (status === 'empty') invoices = [];\nif (status === 'partial') invoices = invoices.slice(0, Math.max(1, Math.ceil(invoices.length / 2)));\nreturn [{ json: { ...source, invoices, billing_source_status: { source: 'billing', status: status === 'partial' ? 'partial' : (invoices.length ? 'success' : 'empty'), checked_at: checkedAt, completed_at: new Date().toISOString(), source_timestamp: checkedAt, records_returned: invoices.length, retry_policy: config.retry_policy, warning: status === 'partial' ? 'Billing source returned a partial data set' : undefined } } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -660,
+        -260
+      ],
+      "id": "inv-fetch-001",
+      "name": "Fetch Overdue Invoices (placeholder)",
+      "notes": "Demo billing-source node. Replace with Stripe, Xero, QuickBooks, NetSuite, Chargebee or HTTP API node using credentials, pagination, timeout and retry handling."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst status = source.billing_source_status ?? {};\nconst alerts = [];\nif (['failed', 'partial', 'empty'].includes(status.status)) {\n  alerts.push({ alert_type: 'collections_billing_source_degraded', severity: status.status === 'failed' ? 'high' : 'medium', source: 'billing', status: status.status, message: status.error || status.warning || `Billing source returned ${status.status}`, checked_at: status.checked_at, recommended_action: status.status === 'failed' ? 'Check billing connector credentials, API availability and workflow-level error handling.' : 'Review source freshness and confirm invoice data completeness before acting on the summary.' });\n}\nreturn [{ json: { ...source, operations_alerts: alerts } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -440,
+        -260
+      ],
+      "id": "inv-alert-001",
+      "name": "Prepare Billing Source Alerts",
+      "notes": "Prepares finance/operations alert payloads when billing data is failed, partial or empty."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst config = source.config;\nconst invoices = Array.isArray(source.invoices) ? source.invoices : [];\nconst normalised = []; const excluded = [];\nfunction bucket(days) { if (days >= 60) return '60+ days'; if (days >= 31) return '31-60 days'; if (days >= 15) return '15-30 days'; if (days >= 7) return '7-14 days'; return 'under-threshold'; }\nfor (const invoice of invoices) {\n  const amount = Number(invoice.amount_due ?? 0); const days = Number(invoice.days_overdue ?? 0); const id = String(invoice.invoice_id ?? '').trim(); const reasons = [];\n  if (!id) reasons.push('missing_invoice_id');\n  if (!invoice.customer_name) reasons.push('missing_customer_name');\n  if (!invoice.customer_email) reasons.push('missing_customer_email');\n  if (!Number.isFinite(amount) || amount <= 0) reasons.push('invalid_amount_due');\n  if (!Number.isFinite(days) || days < config.reminder_days) reasons.push('below_reminder_age');\n  if (amount < config.minimum_amount) reasons.push('below_minimum_amount');\n  if (invoice.written_off === true || invoice.status === 'written_off') reasons.push('written_off');\n  if (reasons.length) { excluded.push({ invoice_id: id || 'unknown', customer_name: invoice.customer_name, reasons }); continue; }\n  const escalation_level = days >= config.severe_escalation_days ? 'severe' : (days >= config.escalation_days ? 'standard' : 'none');\n  const baseKey = `${id}:${days}:${amount}`;\n  normalised.push({ invoice_id: id, account_id: invoice.account_id || id, customer_name: invoice.customer_name, customer_email: invoice.customer_email, owner_email: invoice.owner_email || 'unassigned@yourcompany.com', amount_due: amount, currency: invoice.currency || config.currency_default, days_overdue: days, bucket: bucket(days), escalation_level, invoice_url: invoice.invoice_url || null, last_reminder_sent_at: invoice.last_reminder_sent_at || null, idempotency_keys: { customer_reminder: `collections:${baseKey}:customer-reminder`, owner_notification: `collections:${baseKey}:owner-notification`, internal_log: `collections:${baseKey}:internal-log`, escalation: `collections:${baseKey}:escalation` } });\n}\nreturn [{ json: { ...source, eligible_invoices: normalised, excluded_invoices: excluded } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -220,
+        -260
+      ],
+      "id": "inv-normalise-001",
+      "name": "Normalise & Filter Invoices",
+      "notes": "Filters invoices below threshold, written off invoices and invalid records, then creates idempotency keys for downstream actions."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {}; const failures = source.config?.simulate_failures ?? {}; const failList = new Set(failures.customer_reminders || []); const results = [];\nfor (const invoice of source.eligible_invoices ?? []) {\n  const startedAt = new Date().toISOString();\n  try { if (failList.has(invoice.invoice_id)) throw new Error('Simulated customer reminder failure');\n    const subject = `Reminder: overdue invoice ${invoice.invoice_id}`;\n    const body = [`Hello ${invoice.customer_name},`, '', `Our records show invoice ${invoice.invoice_id} for ${invoice.currency} ${invoice.amount_due.toLocaleString()} is ${invoice.days_overdue} days overdue.`, 'Please arrange payment when possible or contact us if there is a query with the invoice.', invoice.invoice_url ? `Invoice link: ${invoice.invoice_url}` : '', '', 'Thank you.'].filter(Boolean).join('\\\\n');\n    results.push({ invoice_id: invoice.invoice_id, action: 'customer_reminder', status: 'prepared', idempotency_key: invoice.idempotency_keys.customer_reminder, to: invoice.customer_email, subject, body, started_at: startedAt, completed_at: new Date().toISOString(), note: 'Replace this payload with Email Send or transactional email provider node.' });\n  } catch (error) { results.push({ invoice_id: invoice.invoice_id, action: 'customer_reminder', status: 'failed', idempotency_key: invoice.idempotency_keys.customer_reminder, error: error.message, started_at: startedAt, completed_at: new Date().toISOString() }); }\n}\nreturn [{ json: { ...source, customer_reminder_results: results } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40,
+        -600
+      ],
+      "id": "inv-reminder-001",
+      "name": "Prepare Customer Reminders",
+      "notes": "Prepares deterministic customer reminder email payloads. In production, connect this to approved email delivery after finance/client review."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {}; const failures = source.config?.simulate_failures ?? {}; const failList = new Set(failures.owner_notifications || []); const results = [];\nfor (const invoice of source.eligible_invoices ?? []) { const startedAt = new Date().toISOString(); try { if (failList.has(invoice.invoice_id)) throw new Error('Simulated account-owner notification failure'); results.push({ invoice_id: invoice.invoice_id, action: 'owner_notification', status: 'prepared', idempotency_key: invoice.idempotency_keys.owner_notification, to: invoice.owner_email, channel: 'account_owner_dm_or_email', message: `${invoice.customer_name} has overdue invoice ${invoice.invoice_id} for ${invoice.currency} ${invoice.amount_due.toLocaleString()} (${invoice.days_overdue} days overdue). Escalation level: ${invoice.escalation_level}.`, started_at: startedAt, completed_at: new Date().toISOString() }); } catch (error) { results.push({ invoice_id: invoice.invoice_id, action: 'owner_notification', status: 'failed', idempotency_key: invoice.idempotency_keys.owner_notification, error: error.message, started_at: startedAt, completed_at: new Date().toISOString() }); } }\nreturn [{ json: { ...source, owner_notification_results: results } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40,
+        -380
+      ],
+      "id": "inv-owner-001",
+      "name": "Prepare Account Owner Notifications",
+      "notes": "Prepares account-owner notification payloads. Replace with Slack, Teams, CRM task or email node for a client deployment."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {}; const failures = source.config?.simulate_failures ?? {}; const failList = new Set(failures.internal_logging || []); const results = [];\nfor (const invoice of source.eligible_invoices ?? []) { const startedAt = new Date().toISOString(); try { if (failList.has(invoice.invoice_id)) throw new Error('Simulated collections log write failure'); results.push({ invoice_id: invoice.invoice_id, action: 'internal_log', status: 'prepared', idempotency_key: invoice.idempotency_keys.internal_log, row: { logged_at: new Date().toISOString(), invoice_id: invoice.invoice_id, customer_name: invoice.customer_name, amount_due: invoice.amount_due, currency: invoice.currency, days_overdue: invoice.days_overdue, bucket: invoice.bucket, escalation_level: invoice.escalation_level, owner_email: invoice.owner_email }, started_at: startedAt, completed_at: new Date().toISOString() }); } catch (error) { results.push({ invoice_id: invoice.invoice_id, action: 'internal_log', status: 'failed', idempotency_key: invoice.idempotency_keys.internal_log, error: error.message, started_at: startedAt, completed_at: new Date().toISOString() }); } }\nreturn [{ json: { ...source, internal_log_results: results } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40,
+        -160
+      ],
+      "id": "inv-log-001",
+      "name": "Prepare Internal Logging Rows",
+      "notes": "Prepares durable-log rows. Replace with Sheets, database, Airtable, Notion, Xero/Stripe notes or accounting-system update."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {}; const failures = source.config?.simulate_failures ?? {}; const failList = new Set(failures.escalations || []); const results = [];\nfor (const invoice of source.eligible_invoices ?? []) { const startedAt = new Date().toISOString(); try { if (invoice.escalation_level === 'none') { results.push({ invoice_id: invoice.invoice_id, action: 'escalation', status: 'skipped', reason: 'below_escalation_threshold', idempotency_key: invoice.idempotency_keys.escalation, started_at: startedAt, completed_at: new Date().toISOString() }); continue; } if (failList.has(invoice.invoice_id)) throw new Error('Simulated escalation failure'); results.push({ invoice_id: invoice.invoice_id, action: 'escalation', status: 'prepared', escalation_level: invoice.escalation_level, idempotency_key: invoice.idempotency_keys.escalation, finance_channel: source.config.finance_alert_channel, message: `${invoice.escalation_level.toUpperCase()} collections escalation: ${invoice.customer_name} / ${invoice.invoice_id}, ${invoice.currency} ${invoice.amount_due.toLocaleString()}, ${invoice.days_overdue} days overdue. Owner: ${invoice.owner_email}.`, recommended_next_step: invoice.escalation_level === 'severe' ? 'Finance lead review and account-owner call task.' : 'Account owner follow-up and billing-system note update.', started_at: startedAt, completed_at: new Date().toISOString() }); } catch (error) { results.push({ invoice_id: invoice.invoice_id, action: 'escalation', status: 'failed', escalation_level: invoice.escalation_level, idempotency_key: invoice.idempotency_keys.escalation, error: error.message, started_at: startedAt, completed_at: new Date().toISOString() }); } }\nreturn [{ json: { ...source, escalation_results: results } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40,
+        60
+      ],
+      "id": "inv-escalation-001",
+      "name": "Prepare Escalations",
+      "notes": "Prepares escalation payloads for invoices past escalation thresholds. Replace with finance leadership alert, CRM/PM task and billing-system note update."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {}; const prompts = [];\nfor (const invoice of source.eligible_invoices ?? []) { prompts.push({ invoice_id: invoice.invoice_id, status: 'prepared_optional_prompt', data_policy: 'Data-minimised account-level fields only; deterministic template remains the approved fallback.', endpoint_hint: 'localhost:5001/completions', body_shape: { prompt: '<generated prompt>', alias: 'general' }, prompt: ['Rewrite the following collections reminder to be polite, concise and professional.', 'Do not change the amount, invoice ID, payment status, escalation status or requested action.', '', `Customer: ${invoice.customer_name}`, `Invoice ID: ${invoice.invoice_id}`, `Amount due: ${invoice.currency} ${invoice.amount_due}`, `Days overdue: ${invoice.days_overdue}`, `Escalation level: ${invoice.escalation_level}`].join('\\\\n') }); }\nreturn [{ json: { ...source, optional_llm_reminder_prompts: prompts, llm_usage: { enabled_in_template: false, role: 'wording_support_only', decision_authority: 'deterministic_rules' } } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40,
+        280
+      ],
+      "id": "inv-llm-001",
+      "name": "Prepare Optional LLM Reminder Drafts",
+      "notes": "Optional data-minimised prompts for rewriting reminder tone. Do not use LLM output as collections authority."
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        320,
+        -490
+      ],
+      "id": "inv-merge-001",
+      "name": "Merge Reminder + Owner",
+      "notes": "Combines branch outputs by position using n8n 2.8.4-compatible merge configuration."
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        320,
+        -50
+      ],
+      "id": "inv-merge-002",
+      "name": "Merge Logging + Escalation",
+      "notes": "Combines branch outputs by position using n8n 2.8.4-compatible merge configuration."
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        580,
+        -270
+      ],
+      "id": "inv-merge-003",
+      "name": "Merge Actions",
+      "notes": "Combines branch outputs by position using n8n 2.8.4-compatible merge configuration."
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        820,
+        -120
+      ],
+      "id": "inv-merge-004",
+      "name": "Merge Actions + LLM Prompts",
+      "notes": "Combines branch outputs by position using n8n 2.8.4-compatible merge configuration."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {}; const invoices = source.eligible_invoices ?? [];\nconst buckets = { '7-14 days': { count: 0, total: 0 }, '15-30 days': { count: 0, total: 0 }, '31-60 days': { count: 0, total: 0 }, '60+ days': { count: 0, total: 0 } };\nfor (const invoice of invoices) { if (!buckets[invoice.bucket]) buckets[invoice.bucket] = { count: 0, total: 0 }; buckets[invoice.bucket].count += 1; buckets[invoice.bucket].total += invoice.amount_due; }\nconst actionGroups = [...(source.customer_reminder_results ?? []), ...(source.owner_notification_results ?? []), ...(source.internal_log_results ?? []), ...(source.escalation_results ?? [])];\nconst failedActions = actionGroups.filter(r => r.status === 'failed'); const preparedEscalations = (source.escalation_results ?? []).filter(r => r.status === 'prepared');\nconst totalOverdue = invoices.reduce((sum, inv) => sum + inv.amount_due, 0); const currency = invoices[0]?.currency || source.config?.currency_default || 'USD';\nconst overall_status = source.billing_source_status?.status === 'failed' ? 'failed' : (failedActions.length || source.billing_source_status?.status === 'partial' ? 'partial_success' : 'success');\nconst lines = []; lines.push('# Daily Collections Summary'); lines.push(''); lines.push('## Overview'); lines.push(`- ${invoices.length} overdue invoices eligible for action.`); lines.push(`- Total overdue: ${currency} ${totalOverdue.toLocaleString()}.`); lines.push(`- ${preparedEscalations.length} invoices prepared for escalation.`); lines.push(`- Overall workflow status: ${overall_status}.`); if ((source.operations_alerts ?? []).length) lines.push(`- Source warnings: ${(source.operations_alerts ?? []).map(a => `${a.source}:${a.status}`).join(', ')}.`); lines.push(''); lines.push('## Buckets'); for (const [name, data] of Object.entries(buckets)) lines.push(`- ${name}: ${data.count} invoices (${currency} ${data.total.toLocaleString()})`); lines.push(''); lines.push('## Newly escalated'); if (!preparedEscalations.length) { lines.push('- None.'); } else { preparedEscalations.forEach((result, index) => { const invoice = invoices.find(inv => inv.invoice_id === result.invoice_id); lines.push(`${index + 1}. **${invoice?.customer_name ?? result.invoice_id} \u2013 ${result.invoice_id}**`); lines.push(`   - Amount: ${invoice?.currency ?? currency} ${(invoice?.amount_due ?? 0).toLocaleString()}`); lines.push(`   - Days overdue: ${invoice?.days_overdue ?? 'unknown'}`); lines.push(`   - Owner: ${invoice?.owner_email ?? 'unknown'}`); lines.push(`   - Action: ${result.recommended_next_step}`); }); }\nif (failedActions.length) { lines.push(''); lines.push('## Action failures'); failedActions.forEach(result => lines.push(`- ${result.invoice_id} / ${result.action}: ${result.error}`)); }\nconst summary_markdown = lines.join('\\\\n');\nreturn [{ json: { ...source, collections_summary: { overall_status, invoice_count: invoices.length, total_overdue: totalOverdue, currency, buckets, escalated_count: preparedEscalations.length, failed_actions: failedActions }, summary_markdown } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        -120
+      ],
+      "id": "inv-summary-001",
+      "name": "Build Collections Summary",
+      "notes": "Builds daily finance summary with buckets, escalations, source warnings and action failures."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {}; const date = new Date().toISOString().slice(0, 10);\nreturn [{ json: { ...source, finance_notification: { channel: source.config?.finance_alert_channel ?? '#finance-collections', subject: `Daily collections summary - ${date}`, markdown: source.summary_markdown, idempotency_key: `collections-summary:${date}`, delivery_status: 'prepared_replace_with_slack_teams_or_email_node' } } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        -120
+      ],
+      "id": "inv-finance-001",
+      "name": "Prepare Finance Summary Notification",
+      "notes": "Prepares finance summary notification payload. Replace with Slack, Teams or Email Send."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst auditRecord = { audit_type: 'invoice_collections_run', audit_id: source.config?.run_id, logged_at: new Date().toISOString(), billing_source_status: source.billing_source_status, operations_alerts: source.operations_alerts ?? [], collections_summary: source.collections_summary, eligible_invoices: source.eligible_invoices, excluded_invoices: source.excluded_invoices, customer_reminder_results: source.customer_reminder_results, owner_notification_results: source.owner_notification_results, internal_log_results: source.internal_log_results, escalation_results: source.escalation_results, finance_notification: source.finance_notification, llm_usage: source.llm_usage };\nreturn [{ json: { ...source, audit_record: auditRecord, audit_status: 'ready_for_durable_store' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        -120
+      ],
+      "id": "inv-audit-001",
+      "name": "Log Audit Snapshot (demo)",
+      "notes": "Creates an audit-ready collections run record. Replace or extend with database, Sheets, Drive, Notion, accounting-system notes or object storage."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger (dev)": {
+      "main": [
+        [
+          {
+            "node": "Set Example Invoice Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Schedule (prod)": {
+      "main": [
+        [
+          {
+            "node": "Set Example Invoice Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Example Invoice Inputs": {
+      "main": [
+        [
+          {
+            "node": "Validate Config / Guardrails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Config / Guardrails": {
+      "main": [
+        [
+          {
+            "node": "Fetch Overdue Invoices (placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Overdue Invoices (placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Billing Source Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Billing Source Alerts": {
+      "main": [
+        [
+          {
+            "node": "Normalise & Filter Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise & Filter Invoices": {
+      "main": [
+        [
+          {
+            "node": "Prepare Customer Reminders",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Account Owner Notifications",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Internal Logging Rows",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Escalations",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Optional LLM Reminder Drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Customer Reminders": {
+      "main": [
+        [
+          {
+            "node": "Merge Reminder + Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Account Owner Notifications": {
+      "main": [
+        [
+          {
+            "node": "Merge Reminder + Owner",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Prepare Internal Logging Rows": {
+      "main": [
+        [
+          {
+            "node": "Merge Logging + Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Escalations": {
+      "main": [
+        [
+          {
+            "node": "Merge Logging + Escalation",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Reminder + Owner": {
+      "main": [
+        [
+          {
+            "node": "Merge Actions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Logging + Escalation": {
+      "main": [
+        [
+          {
+            "node": "Merge Actions",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Actions": {
+      "main": [
+        [
+          {
+            "node": "Merge Actions + LLM Prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Optional LLM Reminder Drafts": {
+      "main": [
+        [
+          {
+            "node": "Merge Actions + LLM Prompts",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Actions + LLM Prompts": {
+      "main": [
+        [
+          {
+            "node": "Build Collections Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Collections Summary": {
+      "main": [
+        [
+          {
+            "node": "Prepare Finance Summary Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Finance Summary Notification": {
+      "main": [
+        [
+          {
+            "node": "Log Audit Snapshot (demo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "invoice-collections-automation-template-v1",
+  "meta": {
+    "instanceId": "invoice-collections-automation-placeholder-instance-id"
+  },
+  "id": "InvoiceCollectionsAutomation001",
+  "tags": []
+}
