@@ -1,0 +1,763 @@
+{
+  "name": "Sales Pipeline Enrichment",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1320,
+        -260
+      ],
+      "id": "c10f8c9e-3374-7e92-0205-8acc3492e07f",
+      "name": "Manual Trigger (dev)",
+      "notes": "Manual trigger for local testing and portfolio demonstration."
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sales-pipeline-enrichment",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1320,
+        -40
+      ],
+      "id": "bccb1b85-1826-a582-968f-98bde38fa14b",
+      "name": "Lead Webhook (prod placeholder)",
+      "notes": "Production entry point for website forms, landing pages, ad forms or CRM webhooks. Configure auth and payload mapping for client use."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id_1",
+              "name": "email",
+              "value": "jane.doe@acme.com",
+              "type": "string"
+            },
+            {
+              "id": "id_2",
+              "name": "name",
+              "value": "Jane Doe",
+              "type": "string"
+            },
+            {
+              "id": "id_3",
+              "name": "company",
+              "value": "Acme Corp",
+              "type": "string"
+            },
+            {
+              "id": "id_4",
+              "name": "website",
+              "value": "https://acme.com",
+              "type": "string"
+            },
+            {
+              "id": "id_5",
+              "name": "source",
+              "value": "Landing page - ebook download",
+              "type": "string"
+            },
+            {
+              "id": "id_6",
+              "name": "utm_campaign",
+              "value": "q1_pipeline_boost",
+              "type": "string"
+            },
+            {
+              "id": "id_7",
+              "name": "utm_medium",
+              "value": "paid-social",
+              "type": "string"
+            },
+            {
+              "id": "id_8",
+              "name": "simulate_source_status",
+              "value": "{}",
+              "type": "string"
+            },
+            {
+              "id": "id_9",
+              "name": "simulate_action_failures",
+              "value": "{}",
+              "type": "string"
+            },
+            {
+              "id": "id_10",
+              "name": "lead_source_id",
+              "value": "lead_demo_001",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1080,
+        -260
+      ],
+      "id": "27f8a1ed-d338-71df-2bab-a09bbd07faad",
+      "name": "Set Example Lead Input",
+      "notes": "Demo payload. Replace with webhook, CRM polling, paid ads forms or product sign-up data in production."
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = items[0]?.json ?? {};\n\nfunction parseJsonObject(value, fallback, fieldName) {\n  if (value === undefined || value === null || value === '') return fallback;\n  if (typeof value === 'object' && !Array.isArray(value)) return value;\n  try {\n    const parsed = JSON.parse(value);\n    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;\n  } catch (error) {\n    throw new Error(`${fieldName} must be valid JSON object`);\n  }\n  throw new Error(`${fieldName} must be a JSON object`);\n}\n\nconst lead = {\n  email: String(input.email ?? '').trim().toLowerCase(),\n  name: String(input.name ?? '').trim(),\n  company: String(input.company ?? '').trim(),\n  website: String(input.website ?? '').trim(),\n  source: String(input.source ?? '').trim(),\n  utm_campaign: String(input.utm_campaign ?? '').trim(),\n  utm_medium: String(input.utm_medium ?? '').trim(),\n  lead_source_id: String(input.lead_source_id ?? '').trim(),\n};\n\nconst missing = [];\nfor (const field of ['email', 'company']) {\n  if (!lead[field]) missing.push(field);\n}\nif (missing.length) throw new Error(`Missing required lead fields: ${missing.join(', ')}`);\nif (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(lead.email)) throw new Error('Lead email is not valid');\n\nconst domain = lead.email.split('@')[1].toLowerCase();\nconst freeEmailDomains = new Set(['gmail.com','outlook.com','hotmail.com','yahoo.com','icloud.com','proton.me','protonmail.com']);\nconst companyDomain = lead.website ? lead.website.replace(/^https?:\\/\\//,'').replace(/^www\\./,'').split('/')[0].toLowerCase() : domain;\n\nconst simulateSourceStatus = parseJsonObject(input.simulate_source_status, {}, 'simulate_source_status');\nconst simulateActionFailures = parseJsonObject(input.simulate_action_failures, {}, 'simulate_action_failures');\n\nconst config = {\n  min_score_for_sales_alert: Number(input.min_score_for_sales_alert ?? 60),\n  enterprise_score_threshold: Number(input.enterprise_score_threshold ?? 85),\n  mid_market_score_threshold: Number(input.mid_market_score_threshold ?? 60),\n  scoring_version: 'sales-fit-v1',\n  retry_policy: {\n    max_attempts: 3,\n    backoff: 'exponential',\n    retry_on: ['429', '408', '5xx', 'network_timeout'],\n  },\n  llm_policy: {\n    enabled: String(input.llm_enabled ?? 'true') !== 'false',\n    endpoint: String(input.llm_endpoint ?? 'http://localhost:5001/completions'),\n    parameter: 'prompt',\n    purpose: 'qualification wording only; deterministic score and route remain authoritative',\n    data_minimisation: ['company', 'website_domain', 'industry', 'employee_count_band', 'country', 'source', 'score_reasons'],\n  },\n  simulate_source_status: simulateSourceStatus,\n  simulate_action_failures: simulateActionFailures,\n};\n\nif (Number.isNaN(config.min_score_for_sales_alert) || config.min_score_for_sales_alert < 0 || config.min_score_for_sales_alert > 100) {\n  throw new Error('min_score_for_sales_alert must be between 0 and 100');\n}\n\nconst runId = `sales-enrichment-${lead.email}-${Date.now()}`;\nconst idempotencyBase = `${lead.email}:${lead.company}:${config.scoring_version}`;\n\nreturn [{\n  json: {\n    lead,\n    control: {\n      run_id: runId,\n      checked_at: new Date().toISOString(),\n      email_domain: domain,\n      company_domain: companyDomain,\n      is_free_email_domain: freeEmailDomains.has(domain),\n      idempotency_keys: {\n        crm_upsert: `${idempotencyBase}:crm-upsert`,\n        sales_notification: `${idempotencyBase}:sales-notification`,\n        enrichment_log: `${idempotencyBase}:enrichment-log`,\n      },\n    },\n    config,\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -840,
+        -260
+      ],
+      "id": "cffede90-3906-b73b-7391-581c668c89cf",
+      "name": "Validate Lead / Control Config",
+      "notes": "Validates lead payload, applies defaults, creates idempotency keys and records data-handling controls."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst status = source.config?.simulate_source_status?.company ?? 'success';\nconst startedAt = new Date().toISOString();\n\nfunction makeResult(status, data, warning) {\n  return [{ json: { ...source, company_enrichment_result: { source: 'company_data', status, checked_at: startedAt, completed_at: new Date().toISOString(), source_timestamp: new Date().toISOString(), retry_policy: source.config.retry_policy, data, warning } } }];\n}\n\ntry {\n  if (status === 'failed') throw new Error('Simulated company enrichment provider failure');\n  if (status === 'empty') return makeResult('empty', {}, 'Company provider returned no matching company record');\n  const data = {\n    legal_name: source.lead.company,\n    employee_count: 350,\n    employee_count_band: '201-500',\n    industry: 'SaaS',\n    country: 'US',\n    annual_revenue_band: '10m-50m',\n    funding_stage: 'Series B',\n  };\n  if (status === 'partial') {\n    delete data.annual_revenue_band;\n    return makeResult('partial', data, 'Company enrichment missing revenue band');\n  }\n  return makeResult('success', data);\n} catch (error) {\n  return makeResult('failed', {}, error.message);\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        -560
+      ],
+      "id": "86748247-7601-5b34-7390-f4e1fceba504",
+      "name": "Enrich Company Data",
+      "notes": "Placeholder for Clearbit/Apollo/ZoomInfo/CRM firmographic enrichment. Returns structured source status."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst status = source.config?.simulate_source_status?.tech_stack ?? 'success';\nconst startedAt = new Date().toISOString();\n\nfunction makeResult(status, data, warning) {\n  return [{ json: { ...source, tech_stack_result: { source: 'tech_stack', status, checked_at: startedAt, completed_at: new Date().toISOString(), source_timestamp: new Date().toISOString(), retry_policy: source.config.retry_policy, data, warning } } }];\n}\n\ntry {\n  if (status === 'failed') throw new Error('Simulated tech-stack enrichment failure');\n  if (status === 'empty') return makeResult('empty', { technologies: [] }, 'No technologies detected for domain');\n  const data = { technologies: ['AWS', 'PostgreSQL', 'HubSpot', 'Segment'], has_crm: true, has_cloud_stack: true, has_data_stack: true };\n  if (status === 'partial') {\n    data.technologies = ['AWS', 'HubSpot'];\n    return makeResult('partial', data, 'Only partial technology fingerprint available');\n  }\n  return makeResult('success', data);\n} catch (error) {\n  return makeResult('failed', { technologies: [] }, error.message);\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        -360
+      ],
+      "id": "4b8c4f02-2daa-eeaf-9c09-3b6ef179a47b",
+      "name": "Enrich Tech Stack",
+      "notes": "Placeholder for BuiltWith/Wappalyzer/internal technology lookup. Returns structured source status."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst status = source.config?.simulate_source_status?.intent ?? 'success';\nconst startedAt = new Date().toISOString();\n\nfunction makeResult(status, data, warning) {\n  return [{ json: { ...source, intent_signal_result: { source: 'behavioural_intent', status, checked_at: startedAt, completed_at: new Date().toISOString(), source_timestamp: new Date().toISOString(), retry_policy: source.config.retry_policy, data, warning } } }];\n}\n\ntry {\n  if (status === 'failed') throw new Error('Simulated product/marketing intent source failure');\n  if (status === 'empty') return makeResult('empty', {}, 'No behavioural intent events found');\n  const data = {\n    source_quality: source.lead.source.toLowerCase().includes('ebook') ? 'medium' : 'standard',\n    page_views_7d: 9,\n    pricing_page_views_7d: 2,\n    demo_requested: false,\n    content_downloaded: true,\n    campaign: source.lead.utm_campaign,\n  };\n  if (status === 'partial') {\n    delete data.pricing_page_views_7d;\n    return makeResult('partial', data, 'Intent data missing pricing-page events');\n  }\n  return makeResult('success', data);\n} catch (error) {\n  return makeResult('failed', {}, error.message);\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        -160
+      ],
+      "id": "2ff36595-10d1-6aac-b816-6f5500312e3e",
+      "name": "Enrich Intent Signals",
+      "notes": "Placeholder for website/product/ad engagement events. Returns structured source status."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst status = source.config?.simulate_source_status?.crm_history ?? 'success';\nconst startedAt = new Date().toISOString();\n\nfunction makeResult(status, data, warning) {\n  return [{ json: { ...source, crm_history_result: { source: 'crm_history', status, checked_at: startedAt, completed_at: new Date().toISOString(), source_timestamp: new Date().toISOString(), retry_policy: source.config.retry_policy, data, warning } } }];\n}\n\ntry {\n  if (status === 'failed') throw new Error('Simulated CRM history lookup failure');\n  if (status === 'empty') return makeResult('empty', { existing_account: false }, 'No existing CRM account or contact found');\n  const data = {\n    existing_account: true,\n    account_id: 'acct_acme',\n    lifecycle_stage: 'prospect',\n    open_opportunities: 0,\n    last_contacted_at: '2026-06-28',\n    account_owner: 'midmarket@yourcompany.com',\n  };\n  if (status === 'partial') {\n    delete data.last_contacted_at;\n    return makeResult('partial', data, 'CRM account found but last-contact timestamp missing');\n  }\n  return makeResult('success', data);\n} catch (error) {\n  return makeResult('failed', {}, error.message);\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        40
+      ],
+      "id": "99a1320e-2ba3-ad3d-a6de-497e71dd1410",
+      "name": "Lookup CRM History",
+      "notes": "Placeholder for CRM duplicate/history lookup. Returns structured source status."
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        -300,
+        -460
+      ],
+      "id": "0101e584-3122-cb37-fed7-b695c54e2bf4",
+      "name": "Merge Company + Tech"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        -300,
+        -60
+      ],
+      "id": "71d50950-12e7-399a-388a-053987d07cb5",
+      "name": "Merge Intent + CRM"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        -60,
+        -260
+      ],
+      "id": "197a53f3-e50a-275f-3087-b310f1632f4c",
+      "name": "Merge All Enrichment"
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst sourceResults = {\n  company_data: source.company_enrichment_result,\n  tech_stack: source.tech_stack_result,\n  behavioural_intent: source.intent_signal_result,\n  crm_history: source.crm_history_result,\n};\n\nconst warnings = [];\nconst failed_sources = [];\nfor (const [key, result] of Object.entries(sourceResults)) {\n  if (!result) {\n    warnings.push(`${key}: missing source result`);\n    failed_sources.push(key);\n    continue;\n  }\n  if (['failed', 'partial', 'empty'].includes(result.status)) {\n    warnings.push(`${key}: ${result.status}${result.warning ? ` - ${result.warning}` : ''}`);\n  }\n  if (result.status === 'failed') failed_sources.push(key);\n}\n\nconst company = sourceResults.company_data?.data ?? {};\nconst tech = sourceResults.tech_stack?.data ?? {};\nconst intent = sourceResults.behavioural_intent?.data ?? {};\nconst crm = sourceResults.crm_history?.data ?? {};\n\nconst enriched_lead = {\n  ...source.lead,\n  enrichment: {\n    legal_name: company.legal_name ?? source.lead.company,\n    employee_count: company.employee_count,\n    employee_count_band: company.employee_count_band,\n    industry: company.industry,\n    country: company.country,\n    annual_revenue_band: company.annual_revenue_band,\n    funding_stage: company.funding_stage,\n    tech_stack: tech.technologies ?? [],\n    has_crm: Boolean(tech.has_crm),\n    has_cloud_stack: Boolean(tech.has_cloud_stack),\n    has_data_stack: Boolean(tech.has_data_stack),\n    intent,\n    crm_history: crm,\n  },\n};\n\nreturn [{ json: { ...source, source_results: sourceResults, source_warnings: warnings, failed_sources, enriched_lead } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        -260
+      ],
+      "id": "a26a18cc-a961-8abf-f3f0-a20533f6488d",
+      "name": "Aggregate Enrichment Results",
+      "notes": "Combines enrichment branch outputs, records source freshness, missing-source warnings and degraded-source status."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst alerts = [];\nfor (const [key, result] of Object.entries(source.source_results ?? {})) {\n  if (!result) continue;\n  if (['failed', 'partial', 'empty'].includes(result.status)) {\n    alerts.push({\n      alert_type: 'sales_enrichment_source_degraded',\n      source: key,\n      status: result.status,\n      warning: result.warning,\n      checked_at: result.checked_at,\n      recommended_action: 'Check enrichment credentials, provider availability, rate limits and payload mapping.',\n    });\n  }\n}\nreturn [{ json: { ...source, operations_alerts: alerts } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        -260
+      ],
+      "id": "c4a3ac6b-7010-edc4-a67e-f557679c9b3a",
+      "name": "Prepare Source Failure Alerts",
+      "notes": "Creates operations alert payloads for failed, empty or partial enrichment sources."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst lead = source.enriched_lead;\nconst e = lead.enrichment ?? {};\nconst reasons = [];\nlet score = 0;\n\nconst employeeCount = Number(e.employee_count ?? 0);\nif (employeeCount >= 1000) { score += 35; reasons.push('Large enterprise employee count'); }\nelse if (employeeCount >= 200) { score += 28; reasons.push('Mid-market employee count'); }\nelse if (employeeCount >= 50) { score += 18; reasons.push('Commercial employee count'); }\nelse { score += 6; reasons.push('Small company size'); }\n\nif (['SaaS','Financial Services','Technology'].includes(e.industry)) { score += 18; reasons.push(`Industry fit: ${e.industry}`); }\nif (['US','GB','CA','AU','IE'].includes(e.country)) { score += 10; reasons.push(`Supported sales region: ${e.country}`); }\nif ((e.tech_stack ?? []).includes('HubSpot') || e.has_crm) { score += 8; reasons.push('CRM or revenue tooling detected'); }\nif (e.has_cloud_stack) { score += 7; reasons.push('Modern cloud stack detected'); }\nif (e.intent?.pricing_page_views_7d >= 2) { score += 12; reasons.push('Recent pricing-page activity'); }\nif (e.intent?.content_downloaded) { score += 5; reasons.push('Content engagement present'); }\nif (e.crm_history?.existing_account) { score += 6; reasons.push('Existing CRM account context available'); }\nif (source.control?.is_free_email_domain) { score -= 12; reasons.push('Free email domain reduces confidence'); }\nif ((source.failed_sources ?? []).length) { score -= Math.min(10, source.failed_sources.length * 4); reasons.push('Score confidence reduced by failed enrichment source'); }\n\nscore = Math.max(0, Math.min(100, score));\nlet segment = 'self-serve';\nlet route = 'self_serve_nurture';\nif (score >= source.config.enterprise_score_threshold || employeeCount >= 1000) { segment = 'enterprise'; route = 'enterprise_sales'; }\nelse if (score >= source.config.mid_market_score_threshold) { segment = 'mid-market'; route = 'mid_market_sales'; }\n\nconst confidence = (source.failed_sources ?? []).length ? 'medium' : (source.source_warnings?.length ? 'medium' : 'high');\nconst should_notify_sales = score >= source.config.min_score_for_sales_alert;\n\nreturn [{ json: { ...source, scored_lead: { ...lead, score, segment, route, score_reasons: reasons, score_confidence: confidence, should_notify_sales, scoring_version: source.config.scoring_version } } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -260
+      ],
+      "id": "d6a9772c-c17c-75a9-c254-00c43b95ab85",
+      "name": "Score and Route Lead",
+      "notes": "Applies deterministic scoring and routing rules. The score and route are the decision source for CRM and sales notifications."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst lead = source.scored_lead;\n\nif (!lead) {\n  throw new Error('LLM qualification prompt expected scored_lead context');\n}\n\nconst e = lead.enrichment ?? {};\n\nconst promptPayload = {\n  company: lead.company,\n  website_domain: source.control?.company_domain,\n  industry: e.industry,\n  employee_count_band: e.employee_count_band,\n  country: e.country,\n  source: lead.source,\n  score: lead.score,\n  segment: lead.segment,\n  route: lead.route,\n  score_reasons: lead.score_reasons,\n  source_warnings: source.source_warnings,\n};\n\nconst prompt = [\n  'Write a concise B2B sales qualification note.',\n  'Use only the provided account-level data. Do not invent facts.',\n  'The deterministic score, segment and route are authoritative.',\n  'Return only the note. Do not include JSON. Do not include a stop token.',\n  'Use exactly this structure:',\n  '## Account summary',\n  'One sentence, maximum 35 words.',\n  '',\n  '## Qualification notes',\n  '- Maximum 3 bullets.',\n  '- Each bullet must be under 18 words.',\n  '',\n  'Total response limit: 100 words.',\n  '',\n  'Account data:',\n  JSON.stringify(promptPayload, null, 2),\n].join(String.fromCharCode(10));\n\nreturn [{\n  json: {\n    ...source,\n    llm_qualification_request: {\n      enabled: source.config.llm_policy.enabled,\n      endpoint: source.config.llm_policy.endpoint,\n      body: {\n        prompt,\n        alias: 'general',\n        n_predict: 120,\n        max_tokens: 120,\n        temperature: 0.1,\n        top_p: 0.85,\n      },\n      data_policy: source.config.llm_policy,\n      prompt_payload: promptPayload,\n      response_contract: {\n        max_words: 100,\n        required_sections: ['Account summary', 'Qualification notes'],\n      },\n    },\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -260
+      ],
+      "id": "54a40cb3-4e70-542e-d3da-abba74111efc",
+      "name": "Prepare Optional LLM Qualification Prompt",
+      "notes": "Prepares a data-minimised, tightly bounded prompt for qualification wording. Deterministic score and route remain authoritative."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5001/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json[\"llm_qualification_request\"][\"body\"]) }}",
+        "options": {
+          "timeout": 45000,
+          "retryOnFail": false,
+          "maxRetries": 0
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1140,
+        -260
+      ],
+      "id": "5c3c30fc-b6a6-ecb2-ab65-b1580e1b7039",
+      "name": "Call Local LLM Qualification",
+      "notes": "Calls the local LLM endpoint with bounded generation controls. n_predict/max_tokens are set and no stop token is used because stop-only responses can produce empty content.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = items[0]?.json ?? {};\n\nfunction readOriginalContext() {\n  const candidates = [];\n\n  try {\n    candidates.push($('Prepare Optional LLM Qualification Prompt').first().json);\n  } catch (error) {}\n\n  try {\n    candidates.push($items('Prepare Optional LLM Qualification Prompt', 0, 0)?.[0]?.json);\n  } catch (error) {}\n\n  for (const candidate of candidates) {\n    if (candidate && typeof candidate === 'object' && candidate.control && candidate.scored_lead) {\n      return candidate;\n    }\n  }\n\n  return {};\n}\n\nfunction firstString(...values) {\n  for (const value of values) {\n    if (typeof value === 'string' && value.trim()) return value.trim();\n  }\n  return '';\n}\n\nfunction deterministicSummary(original, reason) {\n  const lead = original.scored_lead ?? original.enriched_lead ?? original.lead ?? {};\n  const reasons = Array.isArray(lead.score_reasons) ? lead.score_reasons.slice(0, 3) : [];\n  const company = lead.company ?? 'This lead';\n  const route = lead.route ?? 'sales review';\n  const score = lead.score ?? 'n/a';\n\n  const summary = [\n    '## Account summary',\n    `${company} is routed to ${route} with a deterministic score of ${score}.`,\n    '',\n    '## Qualification notes',\n    ...(reasons.length ? reasons.map(item => `- ${item}`) : ['- Deterministic scoring context was used because LLM output was unavailable.']),\n  ].join(String.fromCharCode(10));\n\n  return {\n    ...original,\n    llm_response_metadata: response,\n    llm_summary: summary,\n    qualification_mode: 'deterministic_fallback',\n    llm_failure_alert: {\n      alert_type: 'sales_qualification_llm_empty_or_invalid',\n      message: reason,\n    },\n  };\n}\n\nconst original = readOriginalContext();\n\nlet content = firstString(\n  response.response,\n  response.content,\n  response.text,\n  response.output,\n  response.generated_text,\n  response.message?.content,\n  response.choices?.[0]?.message?.content,\n  response.choices?.[0]?.text,\n  response.data?.content,\n  response.data?.text,\n  response.data?.output,\n  response.data?.choices?.[0]?.message?.content,\n  response.data?.choices?.[0]?.text\n);\n\nif (!content && Array.isArray(response.output)) {\n  content = response.output\n    .map(part => typeof part === 'string' ? part : part?.content || part?.text || '')\n    .filter(Boolean)\n    .join(String.fromCharCode(10))\n    .trim();\n}\n\ncontent = content\n  .replace(/END_QUALIFICATION[\\s\\S]*$/i, '')\n  .trim();\n\nif (!original.control || !original.scored_lead) {\n  throw new Error('LLM extraction could not recover original scored lead context');\n}\n\nif (!content) {\n  const availableKeys = Object.keys(response).sort().join(', ');\n  return [{ json: deterministicSummary(original, `LLM returned empty content. Available top-level fields: ${availableKeys}`) }];\n}\n\nif (content.length > 2500) {\n  return [{ json: deterministicSummary(original, 'LLM qualification response exceeded safe length') }];\n}\n\nreturn [{\n  json: {\n    ...original,\n    llm_response_metadata: response,\n    llm_summary: content,\n    qualification_mode: 'llm',\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        -260
+      ],
+      "id": "1834d3b0-4228-9dda-0227-4787d6c62de1",
+      "name": "Extract Qualification Summary",
+      "notes": "Normalises LLM response shapes into llm_summary and falls back deterministically on empty or oversized content while preserving original lead context.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\n\nfunction readOriginalContext() {\n  const candidates = [source];\n\n  try {\n    candidates.push($('Prepare Optional LLM Qualification Prompt').first().json);\n  } catch (error) {}\n\n  try {\n    candidates.push($items('Prepare Optional LLM Qualification Prompt', 0, 0)?.[0]?.json);\n  } catch (error) {}\n\n  for (const candidate of candidates) {\n    if (candidate && typeof candidate === 'object' && candidate.control && candidate.scored_lead) {\n      return candidate;\n    }\n  }\n\n  return source;\n}\n\nconst original = readOriginalContext();\nconst lead = original.scored_lead ?? original.enriched_lead ?? original.lead ?? {};\nconst reasons = lead.score_reasons ?? [];\n\nconst summary = [\n  '## Account summary',\n  `${lead.company ?? 'This lead'} is routed to ${lead.route ?? 'sales review'} with a score of ${lead.score ?? 'n/a'}.`,\n  '',\n  '## Qualification notes',\n  ...(reasons.length\n    ? reasons.map(reason => `- ${reason}`)\n    : ['- Qualification reasons unavailable because deterministic scoring context was not available.']),\n].join(String.fromCharCode(10));\n\nreturn [{\n  json: {\n    ...original,\n    llm_response_metadata: source,\n    llm_summary: summary,\n    qualification_mode: 'deterministic_fallback',\n    llm_failure_alert: {\n      alert_type: 'sales_qualification_llm_failed',\n      message: source.error?.message || source.message || 'Local LLM qualification failed or returned an unexpected response shape',\n    },\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        20
+      ],
+      "id": "49fb594d-7b73-355e-93a3-c4f4f0a5dc28",
+      "name": "Build Deterministic Qualification Fallback",
+      "notes": "Creates deterministic qualification wording when the optional LLM call fails."
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        1620,
+        -160
+      ],
+      "id": "c2bc99ca-3cf7-e16a-1f44-277a51f3879a",
+      "name": "Merge Qualification Paths"
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst lead = source.scored_lead ?? {};\nconst failures = source.config?.simulate_action_failures ?? {};\n\nif (!source.control?.idempotency_keys || !source.scored_lead) {\n  throw new Error('Expected enriched lead context was missing before action preparation. Check LLM qualification merge/context preservation path.');\n}\nconst failed = Boolean(failures.crm_upsert);\nconst result = failed ? {\n  action: 'crm_upsert',\n  status: 'failed',\n  idempotency_key: source.control.idempotency_keys.crm_upsert,\n  error: 'Simulated CRM upsert failure',\n  completed_at: new Date().toISOString(),\n} : {\n  action: 'crm_upsert',\n  status: 'prepared',\n  idempotency_key: source.control.idempotency_keys.crm_upsert,\n  completed_at: new Date().toISOString(),\n  payload: {\n    email: lead.email,\n    name: lead.name,\n    company: lead.company,\n    website: lead.website,\n    score: lead.score,\n    segment: lead.segment,\n    route: lead.route,\n    score_confidence: lead.score_confidence,\n    qualification_summary: source.llm_summary,\n    source_warnings: source.source_warnings,\n  },\n  note: 'Replace this payload with HubSpot/Salesforce/Pipedrive/CRM upsert node.',\n};\nreturn [{ json: { ...source, crm_upsert_result: result } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1860,
+        -360
+      ],
+      "id": "e55e410b-0bd2-ab60-7f9c-c0039a51a345",
+      "name": "Prepare CRM Upsert (placeholder)",
+      "notes": "Prepares CRM upsert payload with idempotency key. Replace with CRM connector in production."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst lead = source.scored_lead ?? {};\nconst failures = source.config?.simulate_action_failures ?? {};\nconst shouldNotify = Boolean(lead.should_notify_sales);\nlet result;\nif (!shouldNotify) {\n  result = { action: 'sales_notification', status: 'skipped', reason: 'Score below sales alert threshold', idempotency_key: source.control.idempotency_keys.sales_notification };\n} else if (failures.sales_notification) {\n  result = { action: 'sales_notification', status: 'failed', error: 'Simulated sales notification failure', idempotency_key: source.control.idempotency_keys.sales_notification };\n} else {\n  const channel = lead.route === 'enterprise_sales' ? '#sales-enterprise' : lead.route === 'mid_market_sales' ? '#sales-mid-market' : '#sales-self-serve';\n  const message = [\n    `New ${lead.segment} lead: ${lead.company}`,\n    `Score: ${lead.score} (${lead.score_confidence} confidence)`,\n    `Route: ${lead.route}`,\n    `Contact: ${lead.name || 'Unknown'} <${lead.email}>`,\n    '',\n    source.llm_summary || 'No qualification summary available.',\n  ].join(String.fromCharCode(10));\n  result = { action: 'sales_notification', status: 'prepared', idempotency_key: source.control.idempotency_keys.sales_notification, channel, message, note: 'Replace this payload with Slack, Teams or email delivery node.' };\n}\nreturn [{ json: { ...source, sales_notification_result: result } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1860,
+        -160
+      ],
+      "id": "247f393b-ead8-ae58-193e-68af31155249",
+      "name": "Prepare Sales Notification (placeholder)",
+      "notes": "Prepares Slack/Teams/email notification payload for the selected sales route."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst lead = source.scored_lead ?? {};\nconst result = {\n  action: 'enrichment_log',\n  status: 'prepared',\n  idempotency_key: source.control.idempotency_keys.enrichment_log,\n  logged_at: new Date().toISOString(),\n  record: {\n    lead_email: lead.email,\n    company: lead.company,\n    score: lead.score,\n    segment: lead.segment,\n    route: lead.route,\n    source_results: source.source_results,\n    source_warnings: source.source_warnings,\n    qualification_mode: source.qualification_mode,\n  },\n  note: 'Replace this payload with database, warehouse, spreadsheet or CRM activity logging.',\n};\nreturn [{ json: { ...source, enrichment_log_result: result } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1860,
+        40
+      ],
+      "id": "70671662-d9f6-009c-9428-e6f6e616b241",
+      "name": "Prepare Enrichment Log (placeholder)",
+      "notes": "Prepares durable logging payload for enrichment and scoring results."
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        -260
+      ],
+      "id": "ab79d1ac-8a7d-7ae9-1858-8616bf6c0fa0",
+      "name": "Merge CRM + Notification"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        2340,
+        -160
+      ],
+      "id": "4a639211-b1b4-8bc8-bce4-e73b6533620b",
+      "name": "Merge Actions + Log"
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst actionResults = {\n  crm_upsert: source.crm_upsert_result,\n  sales_notification: source.sales_notification_result,\n  enrichment_log: source.enrichment_log_result,\n};\nconst failedActions = Object.entries(actionResults).filter(([, result]) => result?.status === 'failed').map(([key]) => key);\nconst preparedActions = Object.entries(actionResults).filter(([, result]) => result?.status === 'prepared').map(([key]) => key);\nconst overall_status = failedActions.length ? (preparedActions.length ? 'partial_success' : 'failed') : 'success';\n\nconst output = {\n  ...source.scored_lead,\n  llm_summary: source.llm_summary,\n  qualification_mode: source.qualification_mode,\n  source_warnings: source.source_warnings,\n  operations_alerts: source.operations_alerts,\n  action_results: actionResults,\n  overall_status,\n};\n\nconst audit_record = {\n  audit_type: 'sales_pipeline_enrichment_result',\n  logged_at: new Date().toISOString(),\n  run_id: source.control.run_id,\n  lead_email: source.lead.email,\n  company: source.lead.company,\n  score: source.scored_lead.score,\n  segment: source.scored_lead.segment,\n  route: source.scored_lead.route,\n  score_reasons: source.scored_lead.score_reasons,\n  source_results: source.source_results,\n  source_warnings: source.source_warnings,\n  operations_alerts: source.operations_alerts,\n  action_results: actionResults,\n  idempotency_keys: source.control.idempotency_keys,\n  llm_policy: source.config.llm_policy,\n  qualification_mode: source.qualification_mode,\n};\n\nreturn [{ json: { ...source, enriched_scored_lead: output, audit_record, overall_status } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2580,
+        -160
+      ],
+      "id": "cfe61bc7-239d-0273-1f6a-1102c277b9ac",
+      "name": "Build Final Enriched Lead",
+      "notes": "Builds the final enriched/scored lead object and audit record for durable storage."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger (dev)": {
+      "main": [
+        [
+          {
+            "node": "Set Example Lead Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead Webhook (prod placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Validate Lead / Control Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Example Lead Input": {
+      "main": [
+        [
+          {
+            "node": "Validate Lead / Control Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Lead / Control Config": {
+      "main": [
+        [
+          {
+            "node": "Enrich Company Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Enrich Tech Stack",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Enrich Intent Signals",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Lookup CRM History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich Company Data": {
+      "main": [
+        [
+          {
+            "node": "Merge Company + Tech",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich Tech Stack": {
+      "main": [
+        [
+          {
+            "node": "Merge Company + Tech",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Enrich Intent Signals": {
+      "main": [
+        [
+          {
+            "node": "Merge Intent + CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup CRM History": {
+      "main": [
+        [
+          {
+            "node": "Merge Intent + CRM",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Company + Tech": {
+      "main": [
+        [
+          {
+            "node": "Merge All Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Intent + CRM": {
+      "main": [
+        [
+          {
+            "node": "Merge All Enrichment",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge All Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Enrichment Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Enrichment Results": {
+      "main": [
+        [
+          {
+            "node": "Prepare Source Failure Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Source Failure Alerts": {
+      "main": [
+        [
+          {
+            "node": "Score and Route Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score and Route Lead": {
+      "main": [
+        [
+          {
+            "node": "Prepare Optional LLM Qualification Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Optional LLM Qualification Prompt": {
+      "main": [
+        [
+          {
+            "node": "Call Local LLM Qualification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Local LLM Qualification": {
+      "main": [
+        [
+          {
+            "node": "Extract Qualification Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Deterministic Qualification Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Qualification Summary": {
+      "main": [
+        [
+          {
+            "node": "Merge Qualification Paths",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Deterministic Qualification Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Deterministic Qualification Fallback": {
+      "main": [
+        [
+          {
+            "node": "Merge Qualification Paths",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Qualification Paths": {
+      "main": [
+        [
+          {
+            "node": "Prepare CRM Upsert (placeholder)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Sales Notification (placeholder)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Enrichment Log (placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare CRM Upsert (placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Merge CRM + Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Sales Notification (placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Merge CRM + Notification",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Prepare Enrichment Log (placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Merge Actions + Log",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge CRM + Notification": {
+      "main": [
+        [
+          {
+            "node": "Merge Actions + Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Actions + Log": {
+      "main": [
+        [
+          {
+            "node": "Build Final Enriched Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Final Enriched Lead": {}
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "sales-pipeline-enrichment-v1",
+  "meta": {
+    "instanceId": "sales-pipeline-enrichment-placeholder-instance-id"
+  },
+  "id": "SalesPipelineEnrichment001",
+  "tags": []
+}
