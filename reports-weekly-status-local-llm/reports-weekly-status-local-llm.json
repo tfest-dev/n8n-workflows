@@ -129,7 +129,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:5001/chat",
+        "url": "http://localhost:5001/completions",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -143,7 +143,7 @@
         "bodyParameters": {
           "parameters": [
             {
-              "name": "input",
+              "name": "prompt",
               "value": "={{ $json[\"prompt\"] }}"
             },
             {

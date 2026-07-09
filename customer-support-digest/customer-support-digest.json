@@ -1,0 +1,444 @@
+{
+  "name": "Customer Support Digest",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        32,
+        0
+      ],
+      "id": "966a26be-485f-47f1-a21f-d1c1eaa057d4",
+      "name": "Manual Trigger (dev)",
+      "notes": "Manual trigger for local testing and portfolio demonstration."
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        32,
+        192
+      ],
+      "id": "448cc4e7-0726-4316-a1b9-642b7882d509",
+      "name": "Daily Schedule (prod)",
+      "notes": "Runs daily at 17:00 server time. Adjust in n8n UI for weekday-only or weekly digests."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2c9c4db9-019b-4bc6-933f-b1f24cf3f79f",
+              "name": "tickets_json",
+              "value": "[{\"id\": 1234, \"subject\": \"Login fails on mobile app\", \"body\": \"I cannot log in from the iOS app since this morning. Two team members are blocked.\", \"status\": \"open\", \"priority\": \"high\", \"tags\": [\"bug\", \"mobile\", \"login\"], \"customer\": \"Acme Corp\", \"plan\": \"Enterprise\", \"created_at\": \"2026-07-08T08:15:00Z\", \"updated_at\": \"2026-07-08T09:02:00Z\"}, {\"id\": 1235, \"subject\": \"Feature request: custom export\", \"body\": \"We'd like to export reports to our internal data lake in a scheduled format.\", \"status\": \"open\", \"priority\": \"normal\", \"tags\": [\"feature-request\", \"reporting\"], \"customer\": \"Beta Inc\", \"plan\": \"Pro\", \"created_at\": \"2026-07-08T09:30:00Z\", \"updated_at\": \"2026-07-08T10:10:00Z\"}, {\"id\": 1236, \"subject\": \"SSO timeout during onboarding\", \"body\": \"Users are timing out during SSO setup. It is affecting our onboarding session today.\", \"status\": \"pending\", \"priority\": \"high\", \"tags\": [\"sso\", \"onboarding\"], \"customer\": \"Globex\", \"plan\": \"Enterprise\", \"created_at\": \"2026-07-08T10:00:00Z\", \"updated_at\": \"2026-07-08T10:42:00Z\"}, {\"id\": 1237, \"subject\": \"Billing invoice address change\", \"body\": \"Please update the billing address on our next invoice.\", \"status\": \"open\", \"priority\": \"low\", \"tags\": [\"billing\"], \"customer\": \"Initech\", \"plan\": \"Pro\", \"created_at\": \"2026-07-08T11:20:00Z\", \"updated_at\": \"2026-07-08T11:21:00Z\"}, {\"id\": 1238, \"subject\": \"Scheduled CSV exports\", \"body\": \"Can we schedule weekly CSV exports for finance reporting?\", \"status\": \"open\", \"priority\": \"normal\", \"tags\": [\"feature-request\", \"exports\"], \"customer\": \"Umbrella Co\", \"plan\": \"Business\", \"created_at\": \"2026-07-08T12:05:00Z\", \"updated_at\": \"2026-07-08T12:30:00Z\"}, {\"id\": 1239, \"subject\": \"Mobile login still failing after password reset\", \"body\": \"Password reset did not resolve the mobile login issue. This looks related to the iOS app update.\", \"status\": \"open\", \"priority\": \"high\", \"tags\": [\"bug\", \"mobile\", \"login\"], \"customer\": \"Contoso\", \"plan\": \"Enterprise\", \"created_at\": \"2026-07-08T13:30:00Z\", \"updated_at\": \"2026-07-08T14:00:00Z\"}, {\"id\": 1240, \"subject\": \"Question about inviting team members\", \"body\": \"How do I invite additional users during trial setup?\", \"status\": \"open\", \"priority\": \"normal\", \"tags\": [\"onboarding\", \"how-to\"], \"customer\": \"Northwind\", \"plan\": \"Starter\", \"created_at\": \"2026-07-08T14:15:00Z\", \"updated_at\": \"2026-07-08T14:20:00Z\"}, {\"id\": 1241, \"subject\": \"Spam ticket - cheap SEO offer\", \"body\": \"Buy cheap SEO traffic now\", \"status\": \"open\", \"priority\": \"low\", \"tags\": [\"spam\"], \"customer\": \"Unknown\", \"plan\": \"Free\", \"created_at\": \"2026-07-08T15:00:00Z\", \"updated_at\": \"2026-07-08T15:00:00Z\"}]",
+              "type": "string"
+            },
+            {
+              "id": "b507b28b-51a9-422a-9412-c8bbdda1c9cd",
+              "name": "run_config_json",
+              "value": "{\"digest_frequency\": \"daily\", \"lookback_hours\": 24, \"max_tickets_for_llm\": 25, \"delivery_channel\": \"leadership_digest\", \"include_low_priority\": true, \"use_llm\": true, \"llm_alias\": \"general\", \"risk_words\": [\"blocked\", \"cannot log in\", \"failing\", \"timeout\", \"enterprise\"]}",
+              "type": "string"
+            },
+            {
+              "id": "77798d53-6535-4c4b-adfe-e420821e1ba9",
+              "name": "simulate_source_status",
+              "value": "{\"helpdesk\": \"success\"}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        256,
+        0
+      ],
+      "id": "a1519b1a-20e6-4fa1-8487-b464e62b1e28",
+      "name": "Set Example Ticket Inputs",
+      "notes": "Static demo input. Replace with Zendesk, Freshdesk, Intercom, Help Scout, Jira Service Management, or an HTTP Request node in client deployments."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\n\nfunction parseJsonField(name, fallback) {\n  if (source[name] === undefined || source[name] === null || source[name] === '') return fallback;\n  if (typeof source[name] !== 'string') return source[name];\n  try {\n    return JSON.parse(source[name]);\n  } catch (error) {\n    throw new Error(`${name} must be valid JSON: ${error.message}`);\n  }\n}\n\nconst tickets = parseJsonField('tickets_json', []);\nconst config = parseJsonField('run_config_json', {});\nconst simulateSourceStatus = parseJsonField('simulate_source_status', {});\n\nif (!Array.isArray(tickets)) {\n  throw new Error('tickets_json must parse to an array');\n}\n\nconst lookbackHours = Number(config.lookback_hours ?? 24);\nconst maxTicketsForLlm = Number(config.max_tickets_for_llm ?? 25);\nif (!Number.isFinite(lookbackHours) || lookbackHours <= 0) {\n  throw new Error('lookback_hours must be a positive number');\n}\nif (!Number.isInteger(maxTicketsForLlm) || maxTicketsForLlm < 1 || maxTicketsForLlm > 100) {\n  throw new Error('max_tickets_for_llm must be an integer between 1 and 100');\n}\n\nconst generatedAt = new Date().toISOString();\nconst runDate = generatedAt.slice(0, 10);\nconst runId = `support-digest-${runDate}-${Date.now()}`;\n\nreturn [{\n  json: {\n    raw_ticket_source: tickets,\n    run_config: {\n      digest_frequency: config.digest_frequency || 'daily',\n      lookback_hours: lookbackHours,\n      max_tickets_for_llm: maxTicketsForLlm,\n      delivery_channel: config.delivery_channel || 'customer-support-digest',\n      include_low_priority: config.include_low_priority ?? true,\n      use_llm: config.use_llm ?? true,\n      llm_alias: config.llm_alias || 'general',\n      risk_words: Array.isArray(config.risk_words) ? config.risk_words : [],\n    },\n    simulate_source_status: simulateSourceStatus,\n    control: {\n      run_id: runId,\n      run_date: runDate,\n      generated_at: generatedAt,\n      idempotency_key: `customer-support-digest:${runDate}:${config.digest_frequency || 'daily'}`,\n      retry_policy: {\n        max_attempts: 3,\n        timeout_ms: 120000,\n        backoff: 'exponential',\n        retry_on: ['429', '408', '5xx', 'network_timeout'],\n      },\n      llm_data_policy: {\n        send_minimised_ticket_fields: true,\n        redact_email_addresses: true,\n        redact_phone_numbers: true,\n        include_full_transcripts: false,\n        llm_role: 'wording_and_theme_summary_not_source_of_truth',\n      },\n    },\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "bf632d41-e339-45a9-9a2b-7ee2dd867027",
+      "name": "Validate Config / Guardrails",
+      "notes": "Validates JSON inputs and creates run-level control metadata, retry policy, idempotency key, and LLM data-handling policy."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst startedAt = new Date().toISOString();\nconst requestedStatus = source.simulate_source_status?.helpdesk || 'success';\n\ntry {\n  if (requestedStatus === 'failed') {\n    throw new Error('Simulated helpdesk API outage');\n  }\n\n  const tickets = requestedStatus === 'empty' ? [] : (source.raw_ticket_source || []);\n  const status = requestedStatus === 'partial' ? 'partial' : (tickets.length ? 'success' : 'empty');\n  const warnings = [];\n  if (status === 'partial') warnings.push('Helpdesk source returned partial results; pagination or rate limit handling should be checked.');\n  if (status === 'empty') warnings.push('Helpdesk source returned no tickets for the configured lookback window.');\n\n  return [{\n    json: {\n      ...source,\n      helpdesk_tickets_raw: tickets,\n      source_statuses: {\n        helpdesk: {\n          source: 'helpdesk',\n          status,\n          checked_at: startedAt,\n          completed_at: new Date().toISOString(),\n          source_timestamp: tickets.map(t => t.updated_at || t.created_at).sort().pop() || null,\n          records_returned: tickets.length,\n          retry_policy: source.control?.retry_policy,\n          warnings,\n        },\n      },\n    },\n  }];\n} catch (error) {\n  return [{\n    json: {\n      ...source,\n      helpdesk_tickets_raw: [],\n      source_statuses: {\n        helpdesk: {\n          source: 'helpdesk',\n          status: 'failed',\n          checked_at: startedAt,\n          completed_at: new Date().toISOString(),\n          source_timestamp: null,\n          records_returned: 0,\n          retry_policy: source.control?.retry_policy,\n          warnings: ['Helpdesk source failed; digest will continue with an operations alert and no ticket data.'],\n          error: error.message,\n        },\n      },\n    },\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "id": "94fbb69d-7fc7-4404-9505-44726d2ea4c0",
+      "name": "Fetch Helpdesk Tickets (placeholder)",
+      "notes": "Credential-free helpdesk source placeholder. Replace with Zendesk, Freshdesk, Intercom, Help Scout, Jira Service Management, or HTTP pagination nodes. Returns structured source status."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst tickets = Array.isArray(source.helpdesk_tickets_raw) ? source.helpdesk_tickets_raw : [];\nconst config = source.run_config ?? {};\nconst riskWords = (config.risk_words || []).map(w => String(w).toLowerCase());\n\nfunction redact(text) {\n  return String(text || '')\n    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi, '[redacted-email]')\n    .replace(/\\+?\\d[\\d\\s().-]{7,}\\d/g, '[redacted-phone]')\n    .trim();\n}\n\nfunction classifyTheme(ticket) {\n  const text = `${ticket.subject || ''} ${(ticket.tags || []).join(' ')} ${ticket.body || ''}`.toLowerCase();\n  if (text.includes('login') || text.includes('sso') || text.includes('auth')) return 'authentication';\n  if (text.includes('bug') || text.includes('fails') || text.includes('failing') || text.includes('error')) return 'bug';\n  if (text.includes('feature') || text.includes('request') || text.includes('export')) return 'feature_request';\n  if (text.includes('billing') || text.includes('invoice') || text.includes('payment')) return 'billing';\n  if (text.includes('onboarding') || text.includes('invite') || text.includes('setup')) return 'onboarding';\n  return 'general_support';\n}\n\nconst dropped = [];\nconst normalised = [];\n\nfor (const ticket of tickets) {\n  const tags = Array.isArray(ticket.tags) ? ticket.tags.map(t => String(t).toLowerCase()) : [];\n  const subject = String(ticket.subject || '').trim();\n  const body = String(ticket.body || '').trim();\n\n  if (tags.includes('spam') || /cheap seo|buy traffic|crypto offer/i.test(`${subject} ${body}`)) {\n    dropped.push({ id: ticket.id, reason: 'spam_or_low_signal' });\n    continue;\n  }\n\n  if (!subject && !body) {\n    dropped.push({ id: ticket.id, reason: 'missing_subject_and_body' });\n    continue;\n  }\n\n  const priority = String(ticket.priority || 'normal').toLowerCase();\n  if (!config.include_low_priority && priority === 'low') {\n    dropped.push({ id: ticket.id, reason: 'low_priority_excluded' });\n    continue;\n  }\n\n  const redactedBody = redact(body).slice(0, 600);\n  const combined = `${subject} ${redactedBody}`.toLowerCase();\n  const matchedRiskWords = riskWords.filter(word => combined.includes(word));\n  const severity = priority === 'urgent' || priority === 'high' || matchedRiskWords.length > 0 ? 'high' : priority === 'low' ? 'low' : 'normal';\n\n  normalised.push({\n    id: String(ticket.id),\n    subject: redact(subject).slice(0, 180),\n    body_excerpt: redactedBody,\n    status: ticket.status || 'unknown',\n    priority,\n    severity,\n    theme: classifyTheme(ticket),\n    tags,\n    customer: ticket.customer || 'Unknown customer',\n    plan: ticket.plan || 'Unknown plan',\n    created_at: ticket.created_at || null,\n    updated_at: ticket.updated_at || null,\n    matched_risk_words: matchedRiskWords,\n  });\n}\n\nconst themeCounts = {};\nconst severityCounts = { high: 0, normal: 0, low: 0 };\nfor (const ticket of normalised) {\n  themeCounts[ticket.theme] = (themeCounts[ticket.theme] || 0) + 1;\n  severityCounts[ticket.severity] = (severityCounts[ticket.severity] || 0) + 1;\n}\n\nconst sourceWarnings = Object.values(source.source_statuses || {})\n  .flatMap(status => status.warnings || []);\n\nreturn [{\n  json: {\n    ...source,\n    normalised_tickets: normalised,\n    dropped_tickets: dropped,\n    ticket_summary: {\n      raw_count: tickets.length,\n      included_count: normalised.length,\n      dropped_count: dropped.length,\n      theme_counts: themeCounts,\n      severity_counts: severityCounts,\n      high_severity_count: severityCounts.high,\n    },\n    data_quality: {\n      status: normalised.length ? 'usable' : 'no_usable_tickets',\n      source_warnings: sourceWarnings,\n      dropped_tickets: dropped,\n    },\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ],
+      "id": "6be5a778-600f-47c8-9555-f86f014c4130",
+      "name": "Normalise & Filter Tickets",
+      "notes": "Maps provider-shaped ticket data into a common structure, removes spam/low-signal records, redacts common personal data, and builds counts used by the digest."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst alerts = [];\n\nfor (const [key, status] of Object.entries(source.source_statuses || {})) {\n  if (['failed', 'partial', 'empty'].includes(status.status)) {\n    alerts.push({\n      alert_type: 'support_digest_source_warning',\n      source: key,\n      status: status.status,\n      checked_at: status.checked_at,\n      source_timestamp: status.source_timestamp,\n      records_returned: status.records_returned,\n      message: status.error || (status.warnings || []).join(' '),\n      recommended_action: status.status === 'failed'\n        ? 'Check helpdesk credentials, API availability, pagination and rate limits.'\n        : 'Check whether the source response is expected for the current lookback window.',\n    });\n  }\n}\n\nreturn [{\n  json: {\n    ...source,\n    operations_alerts: alerts,\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "id": "897ab91a-4f29-4c45-a997-8800b477d797",
+      "name": "Prepare Source Alert Payloads",
+      "notes": "Creates operations-alert payloads when the helpdesk source is failed, partial, or empty. Replace downstream delivery with Slack/email/incident tooling in production."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst config = source.run_config ?? {};\nconst limit = config.max_tickets_for_llm ?? 25;\nconst ticketsForPrompt = (source.normalised_tickets || []).slice(0, limit).map(ticket => ({\n  id: ticket.id,\n  subject: ticket.subject,\n  body_excerpt: ticket.body_excerpt,\n  status: ticket.status,\n  priority: ticket.priority,\n  severity: ticket.severity,\n  theme: ticket.theme,\n  tags: ticket.tags,\n  customer: ticket.customer,\n  plan: ticket.plan,\n}));\n\nconst prompt = `\nYou are a customer support operations analyst producing a concise ${config.digest_frequency || 'daily'} support digest for founders, customer success leaders, product managers and engineering leads.\n\nUse the ticket data below to produce Markdown with this exact structure:\n\n# Customer Support Digest - ${source.control?.run_date}\n\n## Summary\n- Give 3-5 bullets covering total ticket volume, high-severity volume, major themes, and customer impact.\n\n## Top themes\nList the top 3-5 themes. Include counts and concise supporting detail.\n\n## High-severity items\nList urgent or high-severity items needing immediate follow-up. Include suggested next step.\n\n## Product / engineering signals\nSummarise bugs, UX friction and feature requests that should be reviewed by product or engineering.\n\n## Ticket list\nList included tickets in compact form: #ID customer — subject (priority/severity).\n\nRules:\n- Return only the final Markdown digest, no commentary.\n- Do not invent ticket IDs or customers.\n- Use account-level summaries rather than raw transcript detail.\n- Treat the rule-based ticket metadata as the source of truth.\n- The LLM is used for wording and theme synthesis, not as the authority for severity or operational status.\n\nSource status:\n${JSON.stringify(source.source_statuses || {}, null, 2)}\n\nTicket summary:\n${JSON.stringify(source.ticket_summary || {}, null, 2)}\n\nTickets:\n${JSON.stringify(ticketsForPrompt, null, 2)}\n`.trim();\n\nreturn [{\n  json: {\n    ...source,\n    prompt,\n    llm_prompt_ticket_count: ticketsForPrompt.length,\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        0
+      ],
+      "id": "e78bf91a-bc3c-4541-879c-e54c6f1c8852",
+      "name": "Build Digest Prompt",
+      "notes": "Builds a minimised prompt using normalised ticket fields only. This follows the workflow LLM policy and avoids raw transcripts."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5001/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "={{ $json[\"prompt\"] }}"
+            },
+            {
+              "name": "alias",
+              "value": "={{ $json[\"run_config\"][\"llm_alias\"] }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1680,
+        0
+      ],
+      "id": "316365d9-abd7-4dc7-962b-6416dce93cd3",
+      "name": "Call Local LLM",
+      "onError": "continueErrorOutput",
+      "notes": "Calls the local LLM endpoint for theme synthesis and digest wording. The error output routes to a deterministic fallback digest and alert payload."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nfunction firstString(...values) {\n  for (const value of values) {\n    if (typeof value === 'string' && value.trim()) return value.trim();\n  }\n  return '';\n}\nlet content = firstString(\n  source.response,\n  source.digest_markdown,\n  source.content,\n  source.text,\n  source.output,\n  source.generated_text,\n  source.message?.content,\n  source.choices?.[0]?.message?.content,\n  source.choices?.[0]?.text,\n  source.results?.[0]?.text,\n  source.data?.response,\n  source.data?.content,\n  source.data?.text,\n  source.data?.output,\n  source.data?.choices?.[0]?.message?.content,\n  source.data?.choices?.[0]?.text\n);\nif (!content && Array.isArray(source.output)) {\n  content = source.output.map(part => typeof part === 'string' ? part : part?.content || part?.text || '').filter(Boolean).join('\\n').trim();\n}\nif (!content) {\n  const availableKeys = Object.keys(source).sort().join(', ');\n  throw new Error(`LLM response did not contain an expected digest field. Available top-level fields: ${availableKeys}`);\n}\nreturn [{\n  json: {\n    ...source,\n    digest_markdown: content,\n    digest_generation_mode: 'llm',\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        0
+      ],
+      "id": "a17727df-cad2-4be5-a20b-3939ef5376d0",
+      "name": "Extract Digest",
+      "onError": "continueErrorOutput",
+      "notes": "Normalises common LLM response shapes into digest_markdown. Unexpected response shapes route to fallback and alert handling."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst error = source.error ?? source;\nconst message = error.message || error.description || source.message || 'Unknown LLM failure';\nconst failedAt = new Date().toISOString();\n\nreturn [{\n  json: {\n    ...source,\n    llm_alert: {\n      alert_type: 'support_digest_llm_failure',\n      failed_at: failedAt,\n      message,\n      recommended_action: 'Check local LLM availability, endpoint URL, request body shape and response extraction mapping.',\n    },\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        304
+      ],
+      "id": "938a24bd-1131-4438-b394-5984af3c68bd",
+      "name": "Prepare LLM Failure Alert",
+      "notes": "Creates an alert payload when LLM generation or response extraction fails."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst tickets = source.normalised_tickets || [];\nconst summary = source.ticket_summary || {};\nconst themeCounts = summary.theme_counts || {};\nconst sortedThemes = Object.entries(themeCounts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));\nconst highSeverity = tickets.filter(t => t.severity === 'high');\n\nconst lines = [];\nlines.push(`# Customer Support Digest - ${source.control?.run_date || new Date().toISOString().slice(0, 10)}`);\nlines.push('');\nlines.push('## Summary');\nlines.push(`- ${summary.included_count || 0} usable tickets included from ${summary.raw_count || 0} raw tickets.`);\nlines.push(`- ${summary.high_severity_count || 0} high-severity tickets identified by deterministic rules.`);\nif (sortedThemes[0]) lines.push(`- Leading theme: ${sortedThemes[0][0]} (${sortedThemes[0][1]} tickets).`);\nif (source.operations_alerts?.length) lines.push(`- Source warning: ${source.operations_alerts.length} operations alert(s) prepared.`);\nif (source.llm_alert) lines.push('- LLM unavailable or response extraction failed; this fallback digest was generated deterministically.');\nlines.push('');\nlines.push('## Top themes');\nif (sortedThemes.length) {\n  sortedThemes.slice(0, 5).forEach(([theme, count], index) => lines.push(`${index + 1}. **${theme}** (${count} tickets)`));\n} else {\n  lines.push('- No themes available.');\n}\nlines.push('');\nlines.push('## High-severity items');\nif (highSeverity.length) {\n  for (const ticket of highSeverity.slice(0, 10)) {\n    lines.push(`- **#${ticket.id} ${ticket.customer} — ${ticket.subject}**`);\n    lines.push(`  - Suggested next step: review owner, impact and customer communication plan.`);\n  }\n} else {\n  lines.push('- No high-severity tickets identified.');\n}\nlines.push('');\nlines.push('## Product / engineering signals');\nconst productSignals = tickets.filter(t => ['bug', 'authentication', 'feature_request'].includes(t.theme));\nif (productSignals.length) {\n  for (const ticket of productSignals.slice(0, 8)) lines.push(`- #${ticket.id} ${ticket.theme}: ${ticket.subject}`);\n} else {\n  lines.push('- No product or engineering signals identified.');\n}\nlines.push('');\nlines.push('## Ticket list');\nfor (const ticket of tickets.slice(0, 25)) lines.push(`- #${ticket.id} ${ticket.customer} — ${ticket.subject} (${ticket.priority}/${ticket.severity})`);\nif (!tickets.length) lines.push('- No usable tickets for this run.');\n\nreturn [{\n  json: {\n    ...source,\n    digest_markdown: lines.join('\\n'),\n    digest_generation_mode: 'deterministic_fallback',\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2288,
+        304
+      ],
+      "id": "89cff9ef-59ee-409e-9948-46bc1da47055",
+      "name": "Build Deterministic Digest Fallback",
+      "notes": "Creates a rule-based fallback digest if the LLM is unavailable or the response shape is unexpected."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nif (typeof source.digest_markdown !== 'string' || !source.digest_markdown.trim()) {\n  throw new Error('Preview / Save Digest expected a non-empty digest_markdown field');\n}\nreturn [{\n  json: {\n    ...source,\n    preview_markdown: source.digest_markdown,\n    digest_ready_at: new Date().toISOString(),\n    delivery_status: 'ready_for_leadership_notification',\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2448,
+        -16
+      ],
+      "id": "a91bc160-1ef3-44d5-8921-7bdc682bc5f4",
+      "name": "Preview / Save Digest",
+      "notes": "Creates a previewable digest payload. Replace or extend with file, Google Drive, Notion, database, object storage, or Slack preview storage."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst subject = `Customer Support Digest - ${source.control?.run_date || new Date().toISOString().slice(0, 10)}`;\nreturn [{\n  json: {\n    ...source,\n    leadership_notification: {\n      idempotency_key: source.control?.idempotency_key,\n      channel: source.run_config?.delivery_channel || 'customer-support-digest',\n      subject,\n      body_markdown: source.digest_markdown,\n      delivery_targets: ['email_or_slack_placeholder'],\n      status: 'prepared_replace_with_email_slack_or_teams_node',\n    },\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2688,
+        -16
+      ],
+      "id": "f94d4edc-8faf-424a-bb4c-54678aa15dc3",
+      "name": "Prepare Leadership Notification (placeholder)",
+      "notes": "Prepares the outbound digest payload. Replace with Email, Slack, Teams or another delivery connector configured with n8n Credentials."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst auditRecord = {\n  audit_type: 'customer_support_digest',\n  audit_id: source.control?.run_id,\n  logged_at: new Date().toISOString(),\n  run_date: source.control?.run_date,\n  digest_generation_mode: source.digest_generation_mode,\n  source_statuses: source.source_statuses,\n  operations_alerts: source.operations_alerts || [],\n  llm_alert: source.llm_alert || null,\n  ticket_summary: source.ticket_summary,\n  dropped_tickets: source.dropped_tickets,\n  digest_markdown: source.digest_markdown,\n  notification: source.leadership_notification,\n  llm_data_policy: source.control?.llm_data_policy,\n};\nreturn [{\n  json: {\n    ...source,\n    audit_record: auditRecord,\n    audit_status: 'ready_for_durable_store',\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2928,
+        -16
+      ],
+      "id": "512c000c-d196-44df-b121-63ef0f07d207",
+      "name": "Log Audit Snapshot (demo)",
+      "notes": "Demo audit checkpoint. Replace or extend with database, spreadsheet, document store, object storage, SIEM, or support-system logging."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger (dev)": {
+      "main": [
+        [
+          {
+            "node": "Set Example Ticket Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Schedule (prod)": {
+      "main": [
+        [
+          {
+            "node": "Set Example Ticket Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Example Ticket Inputs": {
+      "main": [
+        [
+          {
+            "node": "Validate Config / Guardrails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Config / Guardrails": {
+      "main": [
+        [
+          {
+            "node": "Fetch Helpdesk Tickets (placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Helpdesk Tickets (placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Normalise & Filter Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise & Filter Tickets": {
+      "main": [
+        [
+          {
+            "node": "Prepare Source Alert Payloads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Source Alert Payloads": {
+      "main": [
+        [
+          {
+            "node": "Build Digest Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Digest Prompt": {
+      "main": [
+        [
+          {
+            "node": "Call Local LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Local LLM": {
+      "main": [
+        [
+          {
+            "node": "Extract Digest",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare LLM Failure Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Digest": {
+      "main": [
+        [
+          {
+            "node": "Preview / Save Digest",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare LLM Failure Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare LLM Failure Alert": {
+      "main": [
+        [
+          {
+            "node": "Build Deterministic Digest Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Deterministic Digest Fallback": {
+      "main": [
+        [
+          {
+            "node": "Preview / Save Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preview / Save Digest": {
+      "main": [
+        [
+          {
+            "node": "Prepare Leadership Notification (placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Leadership Notification (placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Log Audit Snapshot (demo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "57a53f52-3145-48e4-8171-1f9276485e11",
+  "meta": {
+    "instanceId": "cea78b7fcbd41a1033774b123868033e862a5358a53460a076e07c8e4289f11d"
+  },
+  "id": "1aaSuOqT4CHUzPyk",
+  "tags": []
+}
