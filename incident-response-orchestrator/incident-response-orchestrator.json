@@ -1,0 +1,661 @@
+{
+  "name": "Incident Response Orchestrator",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -976,
+        208
+      ],
+      "id": "b3a32eb5-5bf3-4d70-bd98-dc44f0edb39c",
+      "name": "Manual Trigger (dev)",
+      "notes": "Manual trigger for local testing. Use the example payload node after this trigger."
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "incident-response-orchestrator",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -976,
+        464
+      ],
+      "id": "96fc2b85-fc03-41f7-bd42-5a43392b412f",
+      "name": "Incident Webhook (prod)",
+      "webhookId": "5b4afa7b-8244-4522-9a02-08b5100615dc",
+      "notes": "Production entry point for PagerDuty, Opsgenie, Grafana, custom alerting, or another alert source. Configure authentication before external use."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "52a6abdb-9fbb-4042-9eaa-db218dd09a25",
+              "name": "incident_id",
+              "value": "inc_2025_0012",
+              "type": "string"
+            },
+            {
+              "id": "3e0055ec-b9b8-4f65-96fb-77537da838e3",
+              "name": "service",
+              "value": "payments-api",
+              "type": "string"
+            },
+            {
+              "id": "d955fc84-2b7a-4b02-9cf7-a56794523b47",
+              "name": "severity",
+              "value": "SEV1",
+              "type": "string"
+            },
+            {
+              "id": "3a81d847-56d1-467f-8a4a-6bea25652a8f",
+              "name": "summary",
+              "value": "Payments API latency > 5s for 30% of requests",
+              "type": "string"
+            },
+            {
+              "id": "fa231414-0a01-41de-9553-dd89bff9fc11",
+              "name": "url",
+              "value": "https://pagerduty.com/incidents/inc_2025_0012",
+              "type": "string"
+            },
+            {
+              "id": "3ff5313d-c768-431b-82c3-43be423280d6",
+              "name": "environment",
+              "value": "production",
+              "type": "string"
+            },
+            {
+              "id": "b98eea2a-53c4-4a4d-9a80-db0efd9f19cc",
+              "name": "simulate_failures",
+              "value": "{}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -736,
+        208
+      ],
+      "id": "a891d995-61c8-4682-9cf7-81de8737cdbc",
+      "name": "Set Example Alert Payload"
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = items[0]?.json ?? {};\nconst body = payload.body && typeof payload.body === 'object' ? payload.body : payload;\n\nconst required = ['incident_id', 'service', 'severity', 'summary'];\nconst missing = required.filter(field => body[field] === undefined || body[field] === null || String(body[field]).trim() === '');\nif (missing.length) {\n  throw new Error(`Missing required incident fields: ${missing.join(', ')}`);\n}\n\nconst severity = String(body.severity).trim().toUpperCase();\nconst processSeverity = ['SEV1', 'SEV2'].includes(severity);\nlet simulateFailures = {};\ntry {\n  simulateFailures = typeof body.simulate_failures === 'string'\n    ? JSON.parse(body.simulate_failures || '{}')\n    : (body.simulate_failures ?? {});\n} catch (error) {\n  throw new Error('simulate_failures must be valid JSON');\n}\n\nconst normalised = {\n  incident_id: String(body.incident_id).trim(),\n  service: String(body.service).trim(),\n  severity,\n  summary: String(body.summary).trim(),\n  url: body.url || body.alert_url || '',\n  environment: body.environment || 'production',\n  received_at: new Date().toISOString(),\n  process_incident: processSeverity,\n  ignored_reason: processSeverity ? null : 'Only SEV1/SEV2 incidents are orchestrated by this workflow',\n  simulate_failures: simulateFailures,\n};\n\nreturn [{ json: normalised }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -496,
+        208
+      ],
+      "id": "727ee5df-de0d-4c36-b007-5967b21f29a3",
+      "name": "Validate & Route Incident",
+      "notes": "Validates the alert payload, normalises severity and marks low-severity incidents as ignored rather than escalating them."
+    },
+    {
+      "parameters": {
+        "jsCode": "const incident = items[0]?.json ?? {};\nconst runAt = new Date().toISOString();\nconst base = `${incident.incident_id}:${incident.service}:${incident.severity}`;\nconst actions = ['collaboration', 'ticketing', 'status_page', 'on_call', 'incident_record'];\nconst idempotencyKeys = Object.fromEntries(actions.map(action => [action, `${base}:${action}`]));\n\nconst serviceMap = {\n  'payments-api': { team: 'payments-platform', on_call: 'alice@yourcompany.com', ticket_prefix: 'PAY', status_component: 'Payments API' },\n  'auth-api': { team: 'identity-platform', on_call: 'identity-oncall@yourcompany.com', ticket_prefix: 'AUTH', status_component: 'Authentication' },\n  'web-app': { team: 'web-platform', on_call: 'web-oncall@yourcompany.com', ticket_prefix: 'WEB', status_component: 'Web Application' },\n};\n\nconst owner = serviceMap[incident.service] ?? {\n  team: 'platform-operations',\n  on_call: 'platform-oncall@yourcompany.com',\n  ticket_prefix: 'OPS',\n  status_component: incident.service,\n};\n\nreturn [{\n  json: {\n    ...incident,\n    owner,\n    control: {\n      generated_at: runAt,\n      idempotency_keys: idempotencyKeys,\n      retry_policy: {\n        max_attempts: 3,\n        backoff: 'exponential',\n        retry_on: ['429', '408', '5xx', 'network_timeout'],\n        notes: 'Apply this policy to real alerting, Slack/Teams, ticketing, status page and incident-store connector nodes.'\n      },\n      severity_policy: {\n        orchestrate: ['SEV1', 'SEV2'],\n        sev1_public_status_page: true,\n        sev2_internal_status_page_default: true,\n      }\n    },\n    enrichment_results: {},\n    action_results: {},\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        208
+      ],
+      "id": "4a5c6178-9b48-4cdd-9cae-5f7ffdf14299",
+      "name": "Prepare Incident Control",
+      "notes": "Adds owning team, on-call contact, retry policy and idempotency keys for all downstream orchestration actions."
+    },
+    {
+      "parameters": {
+        "jsCode": "const incident = { ...items[0].json };\nconst startedAt = new Date().toISOString();\ntry {\n  if (incident.simulate_failures?.deploys) throw new Error('Simulated deploy history source failure');\n  const deploys = [\n    { id: 'deploy_8821', service: incident.service, version: '2025.04.18.3', deployed_at: '2025-04-18T09:41:00Z', actor: 'ci@yourcompany.com' },\n    { id: 'deploy_8819', service: incident.service, version: '2025.04.18.1', deployed_at: '2025-04-18T07:15:00Z', actor: 'ci@yourcompany.com' },\n  ];\n  return [{ json: { ...incident, recent_deploys_result: { source: 'deploys', status: 'success', checked_at: startedAt, completed_at: new Date().toISOString(), count: deploys.length, deploys } } }];\n} catch (error) {\n  return [{ json: { ...incident, recent_deploys_result: { source: 'deploys', status: 'failed', checked_at: startedAt, completed_at: new Date().toISOString(), error: error.message, deploys: [] } } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "92fbf602-4060-4a19-93a4-f52fa130a821",
+      "name": "Fetch Recent Deploys (placeholder)",
+      "notes": "Credential-free enrichment placeholder. Replace with real HTTP/native connector nodes and keep the same structured status shape."
+    },
+    {
+      "parameters": {
+        "jsCode": "const incident = { ...items[0].json };\nconst startedAt = new Date().toISOString();\ntry {\n  if (incident.simulate_failures?.related_tickets) throw new Error('Simulated related ticket source failure');\n  const tickets = [\n    { id: 'SUP-7712', title: 'Checkout timeout reports', status: 'open', priority: 'high' },\n    { id: 'BUG-2219', title: 'Payments latency regression investigation', status: 'in_progress', priority: 'critical' },\n  ];\n  return [{ json: { ...incident, related_tickets_result: { source: 'related_tickets', status: 'success', checked_at: startedAt, completed_at: new Date().toISOString(), count: tickets.length, tickets } } }];\n} catch (error) {\n  return [{ json: { ...incident, related_tickets_result: { source: 'related_tickets', status: 'failed', checked_at: startedAt, completed_at: new Date().toISOString(), error: error.message, tickets: [] } } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        224
+      ],
+      "id": "60d5f583-2101-4d9d-b553-33d2d98c29dc",
+      "name": "Fetch Related Tickets (placeholder)",
+      "notes": "Credential-free enrichment placeholder. Replace with real HTTP/native connector nodes and keep the same structured status shape."
+    },
+    {
+      "parameters": {
+        "jsCode": "const incident = { ...items[0].json };\nconst startedAt = new Date().toISOString();\ntry {\n  if (incident.simulate_failures?.on_call_lookup) throw new Error('Simulated on-call lookup failure');\n  const onCall = {\n    email: incident.owner?.on_call || 'platform-oncall@yourcompany.com',\n    escalation_policy: `${incident.owner?.team || 'platform'}-primary`,\n    source: 'static_service_map_demo',\n  };\n  return [{ json: { ...incident, on_call_result: { source: 'on_call', status: 'success', checked_at: startedAt, completed_at: new Date().toISOString(), on_call: onCall } } }];\n} catch (error) {\n  return [{ json: { ...incident, on_call_result: { source: 'on_call', status: 'failed', checked_at: startedAt, completed_at: new Date().toISOString(), error: error.message, on_call: null } } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        448
+      ],
+      "id": "11f47ef3-1424-431d-97c0-eba7e1b75efc",
+      "name": "Resolve On-call Contact (placeholder)",
+      "notes": "Credential-free enrichment placeholder. Replace with real HTTP/native connector nodes and keep the same structured status shape."
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        272,
+        128
+      ],
+      "id": "821cbbc9-876d-476e-bc0a-4fff30a2d37c",
+      "name": "Merge Deploys + Related Tickets"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        512,
+        304
+      ],
+      "id": "c475137b-cabf-4b42-8861-69a19734db28",
+      "name": "Merge Enrichment + On-call"
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst enrichment = {\n  deploys: source.recent_deploys_result,\n  related_tickets: source.related_tickets_result,\n  on_call: source.on_call_result,\n};\n\nconst warnings = Object.values(enrichment)\n  .filter(result => result && result.status !== 'success')\n  .map(result => `${result.source}: ${result.status}${result.error ? ` (${result.error})` : ''}`);\n\nreturn [{\n  json: {\n    ...source,\n    enrichment_results: enrichment,\n    enrichment_warnings: warnings,\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        304
+      ],
+      "id": "cdf6ea86-813e-40f9-807d-2c7a1a5b6c79",
+      "name": "Build Enriched Incident Object",
+      "notes": "Aggregates enrichment source statuses and carries source warnings into the live incident object."
+    },
+    {
+      "parameters": {
+        "jsCode": "const incident = { ...items[0].json };\nconst startedAt = new Date().toISOString();\nconst action = 'collaboration';\ntry {\n  if (incident.simulate_failures?.collaboration) throw new Error('Simulated Slack/Teams channel creation failure');\n  const channelName = `#inc-${incident.severity.toLowerCase()}-${incident.incident_id}`.replace(/[^#a-z0-9_-]/gi, '-').toLowerCase();\n  const result = {\n    action,\n    status: 'success',\n    idempotency_key: incident.control.idempotency_keys.collaboration,\n    started_at: startedAt,\n    completed_at: new Date().toISOString(),\n    channel_name: channelName,\n    channel_url: `https://your-slack-workspace.slack.com/archives/${channelName.replace('#','')}`,\n    invited: [incident.enrichment_results?.on_call?.on_call?.email || incident.owner.on_call, 'incident-commander@yourcompany.com'],\n  };\n  return [{ json: { ...incident, collaboration_action_result: result } }];\n} catch (error) {\n  return [{ json: { ...incident, collaboration_action_result: { action, status: 'failed', idempotency_key: incident.control?.idempotency_keys?.collaboration, started_at: startedAt, completed_at: new Date().toISOString(), error: error.message } } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        0
+      ],
+      "id": "4c749d9f-2be7-49e3-a58f-1f14554b85d5",
+      "name": "Setup Collaboration Channel",
+      "notes": "Demo-safe orchestration branch. Replace with real connector/API nodes while keeping structured action status and idempotency metadata."
+    },
+    {
+      "parameters": {
+        "jsCode": "const incident = { ...items[0].json };\nconst startedAt = new Date().toISOString();\nconst action = 'ticketing';\ntry {\n  if (incident.simulate_failures?.ticketing) throw new Error('Simulated Jira/Linear ticket failure');\n  const prefix = incident.owner?.ticket_prefix || 'OPS';\n  const numeric = Math.abs([...incident.incident_id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0)) % 9000 + 1000;\n  const ticketId = `${prefix}-${numeric}`;\n  const result = {\n    action,\n    status: 'success',\n    idempotency_key: incident.control.idempotency_keys.ticketing,\n    started_at: startedAt,\n    completed_at: new Date().toISOString(),\n    ticket_id: ticketId,\n    ticket_url: `https://your-jira-instance/browse/${ticketId}`,\n  };\n  return [{ json: { ...incident, ticketing_action_result: result } }];\n} catch (error) {\n  return [{ json: { ...incident, ticketing_action_result: { action, status: 'failed', idempotency_key: incident.control?.idempotency_keys?.ticketing, started_at: startedAt, completed_at: new Date().toISOString(), error: error.message } } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        224
+      ],
+      "id": "c06c7d64-134a-46b2-90a5-c8c2249eae3b",
+      "name": "Create or Update Incident Ticket",
+      "notes": "Demo-safe orchestration branch. Replace with real connector/API nodes while keeping structured action status and idempotency metadata."
+    },
+    {
+      "parameters": {
+        "jsCode": "const incident = { ...items[0].json };\nconst startedAt = new Date().toISOString();\nconst action = 'status_page';\ntry {\n  if (incident.simulate_failures?.status_page) throw new Error('Simulated status page API failure');\n  const shouldPublish = incident.severity === 'SEV1' || incident.control?.severity_policy?.sev2_internal_status_page_default;\n  if (!shouldPublish) {\n    return [{ json: { ...incident, status_page_action_result: { action, status: 'skipped', reason: 'Status page update not required by policy', started_at: startedAt, completed_at: new Date().toISOString() } } }];\n  }\n  const statusPageId = `sp_${incident.incident_id}`;\n  const result = {\n    action,\n    status: 'success',\n    idempotency_key: incident.control.idempotency_keys.status_page,\n    started_at: startedAt,\n    completed_at: new Date().toISOString(),\n    status_page_id: statusPageId,\n    status_page_url: `https://status.yourcompany.com/incidents/${statusPageId}`,\n    audience: incident.severity === 'SEV1' ? 'public_or_customer_visible_by_policy' : 'internal',\n  };\n  return [{ json: { ...incident, status_page_action_result: result } }];\n} catch (error) {\n  return [{ json: { ...incident, status_page_action_result: { action, status: 'failed', idempotency_key: incident.control?.idempotency_keys?.status_page, started_at: startedAt, completed_at: new Date().toISOString(), error: error.message } } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        448
+      ],
+      "id": "9947287e-ca1b-4011-b5fa-e6f3175195dd",
+      "name": "Create or Update Status Page",
+      "notes": "Demo-safe orchestration branch. Replace with real connector/API nodes while keeping structured action status and idempotency metadata."
+    },
+    {
+      "parameters": {
+        "jsCode": "const incident = { ...items[0].json };\nconst startedAt = new Date().toISOString();\nconst action = 'on_call';\ntry {\n  if (incident.simulate_failures?.on_call_notify) throw new Error('Simulated on-call notification failure');\n  const onCall = incident.enrichment_results?.on_call?.on_call?.email || incident.owner?.on_call || 'platform-oncall@yourcompany.com';\n  const result = {\n    action,\n    status: 'success',\n    idempotency_key: incident.control.idempotency_keys.on_call,\n    started_at: startedAt,\n    completed_at: new Date().toISOString(),\n    notified: onCall,\n    notification_channel: 'pager_or_dm_placeholder',\n  };\n  return [{ json: { ...incident, on_call_action_result: result } }];\n} catch (error) {\n  return [{ json: { ...incident, on_call_action_result: { action, status: 'failed', idempotency_key: incident.control?.idempotency_keys?.on_call, started_at: startedAt, completed_at: new Date().toISOString(), error: error.message } } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        672
+      ],
+      "id": "a63a71cb-1386-4377-83cc-f9ce3e8e41e8",
+      "name": "Notify On-call Engineer",
+      "notes": "Demo-safe orchestration branch. Replace with real connector/API nodes while keeping structured action status and idempotency metadata."
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        128
+      ],
+      "id": "50a70be1-a9ef-4a9d-8655-db13889d826c",
+      "name": "Merge Collaboration + Ticketing"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        544
+      ],
+      "id": "78d0354e-33c0-410d-9c74-17764b933e69",
+      "name": "Merge Status Page + On-call"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        352
+      ],
+      "id": "df471f53-62f6-44c1-8002-8a2f3d9a1448",
+      "name": "Merge Incident Actions"
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst actions = {\n  collaboration: source.collaboration_action_result,\n  ticketing: source.ticketing_action_result,\n  status_page: source.status_page_action_result,\n  on_call: source.on_call_action_result,\n};\nconst actionValues = Object.values(actions).filter(Boolean);\nconst failed = actionValues.filter(a => a.status === 'failed');\nconst succeeded = actionValues.filter(a => a.status === 'success');\nconst skipped = actionValues.filter(a => a.status === 'skipped');\n\nconst orchestration_status = failed.length\n  ? (succeeded.length ? 'partial_success' : 'failed')\n  : 'success';\n\nconst liveIncident = {\n  incident_id: source.incident_id,\n  service: source.service,\n  severity: source.severity,\n  summary: source.summary,\n  environment: source.environment,\n  owner_team: source.owner?.team,\n  on_call_engineer: source.on_call_action_result?.notified || source.enrichment_results?.on_call?.on_call?.email || source.owner?.on_call,\n  orchestration_status,\n  slack_channel: source.collaboration_action_result?.channel_name,\n  ticket_id: source.ticketing_action_result?.ticket_id,\n  status_page_id: source.status_page_action_result?.status_page_id,\n  links: {\n    alert: source.url,\n    collaboration: source.collaboration_action_result?.channel_url,\n    ticket: source.ticketing_action_result?.ticket_url,\n    status_page: source.status_page_action_result?.status_page_url,\n  },\n  enrichment_warnings: source.enrichment_warnings || [],\n  failed_actions: failed.map(a => ({ action: a.action, error: a.error })),\n};\n\nreturn [{\n  json: {\n    ...source,\n    action_results: actions,\n    orchestration_status,\n    live_incident: liveIncident,\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1744,
+        352
+      ],
+      "id": "0a42c545-8388-4e86-a647-0a11d178cef5",
+      "name": "Build Live Incident Object",
+      "notes": "Aggregates action outputs into one live incident object with links, owners, status and failed-action visibility."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst failedActions = Object.values(source.action_results ?? {}).filter(action => action?.status === 'failed');\nconst failedEnrichment = Object.values(source.enrichment_results ?? {}).filter(result => result?.status && result.status !== 'success');\nconst alerts = [];\nfor (const action of failedActions) {\n  alerts.push({\n    alert_type: 'incident_orchestration_action_failure',\n    severity: source.severity,\n    incident_id: source.incident_id,\n    action: action.action,\n    error: action.error,\n    recommended_action: 'Check the connector/API credentials, rate limits, destination availability and idempotency record before retrying.',\n  });\n}\nfor (const result of failedEnrichment) {\n  alerts.push({\n    alert_type: 'incident_enrichment_source_warning',\n    severity: source.severity,\n    incident_id: source.incident_id,\n    source: result.source,\n    status: result.status,\n    error: result.error || null,\n    recommended_action: 'Review whether the missing enrichment affects incident response decisions.',\n  });\n}\nreturn [{ json: { ...source, operations_alerts: alerts } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        352
+      ],
+      "id": "f235ff20-dc8b-472c-8ae0-25aff1339bc0",
+      "name": "Prepare Operations Alerts",
+      "notes": "Creates alert payloads for failed orchestration actions or degraded enrichment sources. Replace/extend with Slack, email, PagerDuty or Opsgenie."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst inc = source.live_incident;\nconst lines = [];\nlines.push(`# ${inc.severity} Incident: ${inc.service}`);\nlines.push('');\nlines.push(`Incident ID: ${inc.incident_id}`);\nlines.push(`Summary: ${inc.summary}`);\nlines.push(`Owner team: ${inc.owner_team}`);\nlines.push(`On-call: ${inc.on_call_engineer}`);\nlines.push(`Orchestration status: ${inc.orchestration_status}`);\nlines.push('');\nlines.push('## Links');\nfor (const [label, url] of Object.entries(inc.links || {})) {\n  if (url) lines.push(`- ${label}: ${url}`);\n}\nif (inc.enrichment_warnings?.length) {\n  lines.push('');\n  lines.push('## Enrichment warnings');\n  for (const warning of inc.enrichment_warnings) lines.push(`- ${warning}`);\n}\nif (inc.failed_actions?.length) {\n  lines.push('');\n  lines.push('## Failed orchestration actions');\n  for (const failure of inc.failed_actions) lines.push(`- ${failure.action}: ${failure.error}`);\n}\nlines.push('');\nlines.push('## Immediate next steps');\nlines.push('- Confirm incident commander and technical lead.');\nlines.push('- Confirm customer impact and mitigation plan.');\nlines.push('- Post first update according to communication policy.');\n\nreturn [{\n  json: {\n    ...source,\n    incident_channel_update_markdown: lines.join('\\n'),\n    notification_status: 'prepared_demo_payload_replace_with_slack_teams_or_email',\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2224,
+        352
+      ],
+      "id": "76672ce7-267d-4280-ae53-31273bd2f574",
+      "name": "Prepare Incident Channel Update",
+      "notes": "Builds the message that would be posted into the incident channel or sent to stakeholders."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst inc = source.live_incident ?? {};\nconst timeline = [\n  { time: source.received_at, event: 'Incident alert received' },\n  { time: source.control?.generated_at, event: 'Incident orchestration started' },\n  { time: new Date().toISOString(), event: 'Live incident object assembled' },\n];\n\nconst prompt = `\nYou are drafting a post-incident review starting point for an engineering leadership team.\n\nUse only the incident facts below. Do not invent root cause, customer impact, financial impact, or corrective actions. Mark unknowns explicitly.\n\nIncident:\n${JSON.stringify(inc, null, 2)}\n\nTimeline:\n${JSON.stringify(timeline, null, 2)}\n\nRelated deploys:\n${JSON.stringify(source.enrichment_results?.deploys?.deploys || [], null, 2)}\n\nRelated tickets:\n${JSON.stringify(source.enrichment_results?.related_tickets?.tickets || [], null, 2)}\n\nReturn a Markdown post-incident review draft with sections: Summary, Impact, Timeline, Detection, Response, Known Unknowns, Follow-up Actions.\n`.trim();\n\nreturn [{\n  json: {\n    ...source,\n    post_incident_review: {\n      status: 'prompt_prepared_optional_llm_step_not_executed_in_live_response_path',\n      data_policy: 'Use after the incident is stable or resolved. Keep deterministic incident records as the authority.',\n      prompt,\n      timeline,\n    },\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        352
+      ],
+      "id": "0155b7ef-730b-4671-8897-98aeda6cd8e1",
+      "name": "Prepare Post-Incident Review Prompt",
+      "notes": "Optional post-incident documentation prompt. Keep this outside the live response critical path; use it after stabilisation or resolution."
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json ?? {};\nconst auditRecord = {\n  audit_type: 'incident_response_orchestration_result',\n  logged_at: new Date().toISOString(),\n  incident_id: source.incident_id,\n  service: source.service,\n  severity: source.severity,\n  orchestration_status: source.orchestration_status,\n  live_incident: source.live_incident,\n  enrichment_results: source.enrichment_results,\n  action_results: source.action_results,\n  operations_alerts: source.operations_alerts,\n  idempotency_keys: source.control?.idempotency_keys,\n  retry_policy: source.control?.retry_policy,\n  incident_channel_update_markdown: source.incident_channel_update_markdown,\n  post_incident_review: source.post_incident_review,\n};\n\nreturn [{ json: { ...source, audit_record: auditRecord, audit_status: 'ready_for_durable_store' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2704,
+        352
+      ],
+      "id": "70438e3b-7f07-4c64-a9fd-473daa9b2ab9",
+      "name": "Log Audit Snapshot (demo)",
+      "notes": "Demo audit checkpoint. Replace or extend with an incidents database, object storage, Google Drive, Notion, Jira/Linear update, or data warehouse write."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger (dev)": {
+      "main": [
+        [
+          {
+            "node": "Set Example Alert Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Example Alert Payload": {
+      "main": [
+        [
+          {
+            "node": "Validate & Route Incident",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Incident Webhook (prod)": {
+      "main": [
+        [
+          {
+            "node": "Validate & Route Incident",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Route Incident": {
+      "main": [
+        [
+          {
+            "node": "Prepare Incident Control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Incident Control": {
+      "main": [
+        [
+          {
+            "node": "Fetch Recent Deploys (placeholder)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Related Tickets (placeholder)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Resolve On-call Contact (placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Recent Deploys (placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Merge Deploys + Related Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Related Tickets (placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Merge Deploys + Related Tickets",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Deploys + Related Tickets": {
+      "main": [
+        [
+          {
+            "node": "Merge Enrichment + On-call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve On-call Contact (placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Merge Enrichment + On-call",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Enrichment + On-call": {
+      "main": [
+        [
+          {
+            "node": "Build Enriched Incident Object",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Enriched Incident Object": {
+      "main": [
+        [
+          {
+            "node": "Setup Collaboration Channel",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create or Update Incident Ticket",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create or Update Status Page",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify On-call Engineer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Collaboration Channel": {
+      "main": [
+        [
+          {
+            "node": "Merge Collaboration + Ticketing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create or Update Incident Ticket": {
+      "main": [
+        [
+          {
+            "node": "Merge Collaboration + Ticketing",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Create or Update Status Page": {
+      "main": [
+        [
+          {
+            "node": "Merge Status Page + On-call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify On-call Engineer": {
+      "main": [
+        [
+          {
+            "node": "Merge Status Page + On-call",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Collaboration + Ticketing": {
+      "main": [
+        [
+          {
+            "node": "Merge Incident Actions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Status Page + On-call": {
+      "main": [
+        [
+          {
+            "node": "Merge Incident Actions",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Incident Actions": {
+      "main": [
+        [
+          {
+            "node": "Build Live Incident Object",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Live Incident Object": {
+      "main": [
+        [
+          {
+            "node": "Prepare Operations Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Operations Alerts": {
+      "main": [
+        [
+          {
+            "node": "Prepare Incident Channel Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Incident Channel Update": {
+      "main": [
+        [
+          {
+            "node": "Prepare Post-Incident Review Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Post-Incident Review Prompt": {
+      "main": [
+        [
+          {
+            "node": "Log Audit Snapshot (demo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "6de299cb-ccca-4d64-8093-6024d2040085",
+  "meta": {
+    "instanceId": "cea78b7fcbd41a1033774b123868033e862a5358a53460a076e07c8e4289f11d"
+  },
+  "id": "nL9GDJWxsy4rl5eC",
+  "tags": []
+}

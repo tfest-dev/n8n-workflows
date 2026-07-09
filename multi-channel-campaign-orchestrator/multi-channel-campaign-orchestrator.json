@@ -6,10 +6,10 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        -960,
-        -80
+        -800,
+        1152
       ],
-      "id": "5d9a3f3b-1111-4a11-8c11-1234567890aa",
+      "id": "2372a22f-83a7-4f44-8cd8-b2c8372804ab",
       "name": "Manual Trigger (dev)"
     },
     {
@@ -77,10 +77,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -760,
-        -80
+        -592,
+        1152
       ],
-      "id": "bd3b2d3f-2222-4b22-9c22-1234567890bb",
+      "id": "9f784548-91f2-455d-86c1-e01101deb4ac",
       "name": "Set Campaign"
     },
     {
@@ -90,10 +90,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -520,
-        -80
+        -384,
+        1152
       ],
-      "id": "f8b1f0f0-3333-4c33-9d33-1234567890cc",
+      "id": "a1bb8645-c23a-43c3-b8c0-812d3f6de37f",
       "name": "Validate & Normalise"
     },
     {
@@ -103,10 +103,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -120,
-        -260
+        160,
+        960
       ],
-      "id": "a1e2b3c4-4444-4d44-9e44-1234567890dd",
+      "id": "fa1cb0f6-52c1-48cd-a6d6-24d1efc90321",
       "name": "Setup Email Campaign",
       "notes": "Demo-safe email branch. Catches channel failures and returns a structured partial-success/failed status instead of hiding other branch results. In production, replace with connector/API nodes using the supplied idempotency key and retry policy."
     },
@@ -117,10 +117,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -120,
-        -40
+        160,
+        1184
       ],
-      "id": "b2f3c4d5-5555-4e55-9f55-1234567890ee",
+      "id": "9157d998-b758-46aa-85bc-272a147fa265",
       "name": "Setup Ads",
       "notes": "Demo-safe ads branch. Catches channel failures and returns a structured partial-success/failed status instead of hiding other branch results. In production, replace with connector/API nodes using the supplied idempotency key and retry policy."
     },
@@ -131,10 +131,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -120,
-        180
+        160,
+        1408
       ],
-      "id": "c3g4d5e6-6666-4f66-9a66-1234567890ff",
+      "id": "57c482d6-0d7c-4ff0-9b7d-c41e29cf8ed0",
       "name": "Setup CRM Campaign",
       "notes": "Demo-safe crm branch. Catches channel failures and returns a structured partial-success/failed status instead of hiding other branch results. In production, replace with connector/API nodes using the supplied idempotency key and retry policy."
     },
@@ -145,63 +145,69 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -120,
-        400
+        160,
+        1632
       ],
-      "id": "d4h5e6f7-7777-4a77-9b77-123456789011",
+      "id": "98ce6bb9-b554-465e-a804-94e81d11b737",
       "name": "Notify Internal Comms",
       "notes": "Demo-safe internal_comms branch. Catches channel failures and returns a structured partial-success/failed status instead of hiding other branch results. In production, replace with connector/API nodes using the supplied idempotency key and retry policy."
     },
     {
       "parameters": {
-        "mode": "mergeByIndex"
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
       },
       "type": "n8n-nodes-base.merge",
       "typeVersion": 2,
       "position": [
-        160,
-        -200
+        448,
+        1024
       ],
-      "id": "e5i6f7g8-8888-4b88-9c88-123456789022",
+      "id": "5f6ad41b-e441-4960-a545-979f002d4440",
       "name": "Merge Email + Ads"
     },
     {
       "parameters": {
-        "mode": "mergeByIndex"
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
       },
       "type": "n8n-nodes-base.merge",
       "typeVersion": 2,
       "position": [
-        420,
-        -40
+        704,
+        1184
       ],
-      "id": "f6j7g8h9-9999-4c99-9d99-123456789033",
+      "id": "bf1fcc03-5a39-40c0-992e-469bf3c81608",
       "name": "Merge Campaign + CRM"
     },
     {
       "parameters": {
-        "mode": "mergeByIndex"
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
       },
       "type": "n8n-nodes-base.merge",
       "typeVersion": 2,
       "position": [
-        680,
-        160
+        960,
+        1392
       ],
-      "id": "g7k8h9i0-aaaa-4daa-9eaa-123456789044",
+      "id": "0fbb29b4-b5e9-4e27-8238-12c045a19823",
       "name": "Merge Full Campaign"
     },
     {
       "parameters": {
-        "jsCode": "const c = items[0].json;\nconst results = c.channel_results ?? {};\nconst channelOrder = [\n  ['email', 'Email'],\n  ['ads', 'Ads'],\n  ['crm', 'CRM'],\n  ['internal_comms', 'Internal comms'],\n];\n\nconst counts = { success: 0, failed: 0, skipped: 0 };\nfor (const [key] of channelOrder) {\n  const status = results[key]?.status ?? 'missing';\n  if (counts[status] !== undefined) counts[status] += 1;\n}\n\nconst overall_status = counts.failed > 0\n  ? (counts.success > 0 ? 'partial_success' : 'failed')\n  : 'success';\n\nconst lines = [];\nlines.push(`# Campaign: ${c.name}`);\nlines.push('');\nlines.push(`Campaign ID: ${c.control?.campaign_id ?? c.campaign_id}`);\nlines.push(`Audience: ${c.audience_segment}`);\nlines.push(`Dates: ${c.start_date} \u2192 ${c.end_date}`);\nlines.push(`Budget: $${c.budget_usd}`);\nlines.push(`Overall status: ${overall_status}`);\nlines.push('');\nlines.push('## Channel status');\n\nfor (const [key, label] of channelOrder) {\n  const result = results[key];\n  if (!result) {\n    lines.push(`- ${label}: missing result`);\n    continue;\n  }\n\n  if (result.status === 'success') {\n    lines.push(`- ${label}: success (idempotency key: ${result.idempotency_key})`);\n  } else if (result.status === 'failed') {\n    lines.push(`- ${label}: failed (${result.error})`);\n  } else if (result.status === 'skipped') {\n    lines.push(`- ${label}: skipped (${result.reason})`);\n  } else {\n    lines.push(`- ${label}: ${result.status}`);\n  }\n}\n\nlines.push('');\nlines.push('## Control notes');\nlines.push(`- Retry policy: ${c.control?.retry_policy?.max_attempts ?? 3} attempts with ${c.control?.retry_policy?.backoff ?? 'exponential'} backoff for transient API failures.`);\nlines.push('- Idempotency keys are generated per campaign/channel to avoid duplicate creation after retries.');\nlines.push('- Failed branches are captured in the final summary instead of masking successful branches.');\n\nconst summary_markdown = lines.join('\\n');\n\nreturn [{\n  json: {\n    ...c,\n    overall_status,\n    summary_markdown,\n  },\n}];\n"
+        "jsCode": "const c = items[0].json;\nconst results = c.channel_results ?? {};\nconst channelOrder = [\n  ['email', 'Email'],\n  ['ads', 'Ads'],\n  ['crm', 'CRM'],\n  ['internal_comms', 'Internal comms'],\n];\n\nconst counts = { success: 0, failed: 0, skipped: 0 };\nfor (const [key] of channelOrder) {\n  const status = results[key]?.status ?? 'missing';\n  if (counts[status] !== undefined) counts[status] += 1;\n}\n\nconst overall_status = counts.failed > 0\n  ? (counts.success > 0 ? 'partial_success' : 'failed')\n  : 'success';\n\nconst lines = [];\nlines.push(`# Campaign: ${c.name}`);\nlines.push('');\nlines.push(`Campaign ID: ${c.control?.campaign_id ?? c.campaign_id}`);\nlines.push(`Audience: ${c.audience_segment}`);\nlines.push(`Dates: ${c.start_date} → ${c.end_date}`);\nlines.push(`Budget: $${c.budget_usd}`);\nlines.push(`Overall status: ${overall_status}`);\nlines.push('');\nlines.push('## Channel status');\n\nfor (const [key, label] of channelOrder) {\n  const result = results[key];\n  if (!result) {\n    lines.push(`- ${label}: missing result`);\n    continue;\n  }\n\n  if (result.status === 'success') {\n    lines.push(`- ${label}: success (idempotency key: ${result.idempotency_key})`);\n  } else if (result.status === 'failed') {\n    lines.push(`- ${label}: failed (${result.error})`);\n  } else if (result.status === 'skipped') {\n    lines.push(`- ${label}: skipped (${result.reason})`);\n  } else {\n    lines.push(`- ${label}: ${result.status}`);\n  }\n}\n\nlines.push('');\nlines.push('## Control notes');\nlines.push(`- Retry policy: ${c.control?.retry_policy?.max_attempts ?? 3} attempts with ${c.control?.retry_policy?.backoff ?? 'exponential'} backoff for transient API failures.`);\nlines.push('- Idempotency keys are generated per campaign/channel to avoid duplicate creation after retries.');\nlines.push('- Failed branches are captured in the final summary instead of masking successful branches.');\n\nconst summary_markdown = lines.join('\\n');\n\nreturn [{\n  json: {\n    ...c,\n    overall_status,\n    summary_markdown,\n  },\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        920,
-        160
+        1200,
+        1392
       ],
-      "id": "h8l9i0j1-bbbb-4ebb-9fbb-123456789055",
+      "id": "fd6db943-3001-4146-9990-d565adececc1",
       "name": "Build Summary"
     },
     {
@@ -211,10 +217,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -400,
-        -80
+        -192,
+        1152
       ],
-      "id": "p9m8n7b6-1010-4c10-8d10-1234567890ab",
+      "id": "d4ba586e-744c-4292-b371-acaa503d6798",
       "name": "Prepare Campaign Control",
       "notes": "Adds campaign-level control metadata: campaign ID, per-channel idempotency keys, and a documented retry policy for production connector/API nodes."
     },
@@ -225,14 +231,15 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1160,
-        160
+        1440,
+        1392
       ],
-      "id": "i9m0j1k2-1212-4f12-9a12-123456789077",
+      "id": "1acf933f-768d-4dc8-8463-929e9b63837d",
       "name": "Log Final Output (demo)",
       "notes": "Demo audit checkpoint. In production replace or extend with a database, object storage, Google Drive, Notion, Sheets, or ticketing node."
     }
   ],
+  "pinData": {},
   "connections": {
     "Manual Trigger (dev)": {
       "main": [
@@ -384,12 +391,14 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
   },
-  "versionId": "ca4b1d2e-cccc-4cdd-9eee-123456789066",
+  "versionId": "967b4024-3ef0-4b39-a5b0-0387c14576e5",
   "meta": {
-    "instanceId": "multi-channel-campaign-orchestrator-placeholder-instance-id"
+    "instanceId": "cea78b7fcbd41a1033774b123868033e862a5358a53460a076e07c8e4289f11d"
   },
-  "id": "KAMPOrchestrator001",
+  "id": "4f5lLTpBvQrig4x7",
   "tags": []
 }
